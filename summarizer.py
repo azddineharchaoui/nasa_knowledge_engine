@@ -6,6 +6,7 @@ with GPU acceleration support and intelligent caching for performance.
 """
 
 import pandas as pd
+import time
 from typing import List, Dict, Optional, Union
 from utils import log, log_error
 
@@ -27,201 +28,807 @@ _summarizer_cache = None
 
 def load_summarizer() -> Optional[object]:
     """
-    Load and cache BART summarization pipeline with optimal configuration.
+    Load and cache summarization pipeline with fallback model chain.
     
-    Uses facebook/bart-large-cnn model with GPU acceleration if available.
-    Implements intelligent device selection and caching for performance.
+    Implements intelligent model selection with fallbacks:
+    1. facebook/bart-large-cnn (primary)
+    2. facebook/bart-base (medium)
+    3. sshleifer/distilbart-cnn-12-6 (lightweight)
+    4. t5-small (minimal)
+    
+    Features:
+    - GPU/CPU auto-detection
+    - Memory-optimized loading
+    - Progress indicators
+    - Robust error handling
+    - Model warming and validation
     
     Returns:
-        Transformers pipeline object or None if unavailable
-        
-    Example:
-        >>> summarizer = load_summarizer()
-        >>> if summarizer:
-        ...     summary = summarizer("Long text...", min_length=30, max_length=100)
+        Transformers pipeline object or None if all models fail
     """
     global _summarizer_cache
     
     # Return cached pipeline if available
     if _summarizer_cache is not None:
-        log("Using cached BART summarizer")
+        log("✓ Using cached summarizer")
         return _summarizer_cache
     
     if not TRANSFORMERS_AVAILABLE:
-        log_error("Transformers library not available - cannot load summarizer")
+        log_error("❌ Transformers library not available - install with: pip install transformers torch")
         return None
     
+    # Model fallback chain - ordered by capability
+    model_chain = [
+        ('facebook/bart-large-cnn', 'BART Large (Best Quality)'),
+        ('facebook/bart-base', 'BART Base (Balanced)'), 
+        ('sshleifer/distilbart-cnn-12-6', 'DistilBART (Lightweight)'),
+        ('t5-small', 'T5 Small (Minimal)')
+    ]
+    
+    # Intelligent device selection with memory management
+    device_info = _get_optimal_device()
+    device = device_info['device']
+    
+    log(f"🚀 Loading summarization model on {device_info['description']}...")
+    
+    for model_name, model_desc in model_chain:
+        try:
+            log(f"📦 Attempting to load {model_desc}: {model_name}")
+            
+            # Memory check before loading large models
+            if not _check_memory_requirements(model_name):
+                log(f"⚠️ Insufficient memory for {model_name}, trying lighter model...")
+                continue
+            
+            # Load model with progress indication
+            _summarizer_cache = _load_model_with_progress(
+                model_name=model_name,
+                device=device,
+                device_info=device_info
+            )
+            
+            # Validate model functionality
+            if _validate_summarizer(_summarizer_cache):
+                log(f"✅ Successfully loaded and validated {model_desc}")
+                return _summarizer_cache
+            else:
+                log(f"❌ Model validation failed for {model_name}")
+                _summarizer_cache = None
+                continue
+                
+        except Exception as e:
+            log_error(f"❌ Failed to load {model_name}: {str(e)}")
+            _summarizer_cache = None
+            
+            # Check if it's a memory error
+            if 'memory' in str(e).lower() or 'cuda out of memory' in str(e).lower():
+                log("💾 Memory error detected - trying lighter model...")
+                continue
+            elif 'connection' in str(e).lower() or 'timeout' in str(e).lower():
+                log("🌐 Network error detected - check internet connection")
+                break  # Don't try other models if network is the issue
+            else:
+                log(f"🔄 Trying next model in fallback chain...")
+                continue
+    
+    log_error("❌ All summarization models failed to load - using fallback methods")
+    return None
+
+
+def _get_optimal_device() -> Dict[str, Union[str, int]]:
+    """Detect optimal device configuration with memory info."""
     try:
-        log("Loading BART summarization model...")
-        
-        # Intelligent device selection
         if torch.cuda.is_available():
-            device = 0  # Use first GPU
-            log(f"✓ CUDA available - using GPU device {device}")
-        else:
-            device = -1  # Use CPU
-            log("Using CPU for summarization")
-        
-        # Load BART model with optimal configuration
-        _summarizer_cache = pipeline(
-            task='summarization',
-            model='facebook/bart-large-cnn',
-            device=device,
-            # Performance optimizations
-            model_kwargs={
-                'torch_dtype': torch.float16 if torch.cuda.is_available() else torch.float32,
-                'low_cpu_mem_usage': True
+            gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9  # GB
+            return {
+                'device': 0,
+                'type': 'cuda', 
+                'description': f'GPU (CUDA) - {gpu_memory:.1f}GB VRAM',
+                'memory_gb': gpu_memory
             }
-        )
+        else:
+            import psutil
+            cpu_memory = psutil.virtual_memory().total / 1e9  # GB
+            return {
+                'device': -1,
+                'type': 'cpu',
+                'description': f'CPU - {cpu_memory:.1f}GB RAM',
+                'memory_gb': cpu_memory
+            }
+    except Exception as e:
+        log_error(f"Device detection error: {str(e)}")
+        return {
+            'device': -1,
+            'type': 'cpu',
+            'description': 'CPU (default)',
+            'memory_gb': 8.0  # Conservative estimate
+        }
+
+
+def _check_memory_requirements(model_name: str) -> bool:
+    """Check if system has sufficient memory for model."""
+    try:
+        # Rough memory requirements (GB)
+        memory_requirements = {
+            'facebook/bart-large-cnn': 2.0,
+            'facebook/bart-base': 1.0,
+            'sshleifer/distilbart-cnn-12-6': 0.5,
+            't5-small': 0.3
+        }
         
-        log("✓ BART summarizer loaded and cached successfully")
-        return _summarizer_cache
+        required_gb = memory_requirements.get(model_name, 1.0)
+        
+        if torch.cuda.is_available():
+            # Check GPU memory
+            free_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
+            available_memory = free_memory * 0.8  # Leave 20% buffer
+        else:
+            # Check system memory
+            import psutil
+            available_memory = psutil.virtual_memory().available / 1e9
+            available_memory *= 0.5  # Conservative for CPU inference
+        
+        has_sufficient = available_memory >= required_gb
+        log(f"💾 Memory check: {available_memory:.1f}GB available, {required_gb:.1f}GB required - {'✅ OK' if has_sufficient else '❌ Insufficient'}")
+        
+        return has_sufficient
         
     except Exception as e:
-        log_error(f"Failed to load BART summarizer: {str(e)}")
-        log("This may be due to model download issues or insufficient memory")
-        return None
+        log_error(f"Memory check failed: {str(e)}")
+        return True  # Assume OK if check fails
+
+
+def _load_model_with_progress(model_name: str, device: int, device_info: Dict) -> object:
+    """Load model with progress indication and optimized settings."""
+    try:
+        log(f"⏳ Downloading/loading model components...")
+        
+        # Optimized model configuration based on device
+        model_kwargs = {
+            'low_cpu_mem_usage': True,
+            'torch_dtype': torch.float16 if device_info['type'] == 'cuda' else torch.float32
+        }
+        
+        # Add device-specific optimizations
+        if device_info['type'] == 'cuda':
+            model_kwargs.update({
+                'device_map': 'auto',
+                'use_safetensors': True
+            })
+        
+        # Load pipeline with timeout handling
+        import signal
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Model loading timed out")
+        
+        # Cross-platform model loading with timeout
+        pipeline_obj = None
+        
+        if hasattr(signal, 'SIGALRM'):
+            # Unix/Linux timeout using signals
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(300)  # 5 minutes
+            
+            try:
+                pipeline_obj = pipeline(
+                    task='summarization',
+                    model=model_name,
+                    device=device,
+                    model_kwargs=model_kwargs,
+                    clean_up_tokenization_spaces=True
+                )
+            finally:
+                signal.alarm(0)  # Clear timeout
+                
+        else:
+            # Windows timeout using threading
+            import threading
+            import queue
+            
+            result_queue = queue.Queue()
+            exception_queue = queue.Queue()
+            
+            def load_model_thread():
+                try:
+                    model_obj = pipeline(
+                        task='summarization',
+                        model=model_name,
+                        device=device,
+                        model_kwargs=model_kwargs,
+                        clean_up_tokenization_spaces=True
+                    )
+                    result_queue.put(model_obj)
+                except Exception as e:
+                    exception_queue.put(e)
+            
+            thread = threading.Thread(target=load_model_thread)
+            thread.daemon = True
+            thread.start()
+            thread.join(timeout=300)  # 5 minutes
+            
+            if thread.is_alive():
+                raise TimeoutError("Model loading timed out after 5 minutes")
+            
+            if not exception_queue.empty():
+                raise exception_queue.get()
+            
+            if not result_queue.empty():
+                pipeline_obj = result_queue.get()
+            else:
+                raise Exception("Model loading failed without specific error")
+        
+        log(f"✅ Model loaded successfully")
+        return pipeline_obj
+            
+    except TimeoutError:
+        raise Exception(f"Model loading timed out after 5 minutes")
+    except Exception as e:
+        raise Exception(f"Model loading failed: {str(e)}")
+
+
+def _validate_summarizer(summarizer: object) -> bool:
+    """Validate summarizer functionality with test input."""
+    if summarizer is None:
+        return False
+    
+    try:
+        log("🧪 Validating summarizer with test input...")
+        
+        test_text = (
+            "Space biology research investigates the effects of microgravity on living organisms. "
+            "Studies have shown that astronauts experience bone loss, muscle atrophy, and "
+            "cardiovascular deconditioning during long-duration spaceflight missions. "
+            "Understanding these biological changes is crucial for future Mars exploration missions."
+        )
+        
+        # Test summarization with conservative parameters
+        result = summarizer(
+            test_text,
+            max_length=50,
+            min_length=20,
+            do_sample=False,
+            truncation=True
+        )
+        
+        # Validate result structure
+        if (isinstance(result, list) and len(result) > 0 and 
+            isinstance(result[0], dict) and 'summary_text' in result[0]):
+            
+            summary = result[0]['summary_text']
+            
+            # Basic quality checks
+            if (summary and len(summary.strip()) >= 10 and 
+                len(summary) < len(test_text) and 
+                'space' in summary.lower() or 'biology' in summary.lower()):
+                
+                log(f"✅ Validation successful - generated {len(summary)} char summary")
+                return True
+            else:
+                log(f"❌ Validation failed - poor quality summary: '{summary[:100]}...'")
+                return False
+        else:
+            log(f"❌ Validation failed - invalid result structure: {type(result)}")
+            return False
+            
+    except Exception as e:
+        log_error(f"❌ Summarizer validation failed: {str(e)}")
+        return False
 
 
 def summarize_text(
     text: str,
-    min_length: int = 30,
-    max_length: int = 100,
-    do_sample: bool = False
+    min_length: int = 40,
+    max_length: int = 120,
+    do_sample: bool = False,
+    num_beams: int = 4,
+    temperature: float = 1.0,
+    timeout_seconds: int = 30
 ) -> Optional[str]:
     """
-    Summarize a single text using BART model.
+    Summarize single text with enhanced AI model and robust error handling.
+    
+    Features:
+    - Optimized parameters for space biology content
+    - Timeout protection for slow inference
+    - Quality validation of generated summaries
+    - Automatic fallback on failure
+    - Impact-focused prompting
     
     Args:
         text: Input text to summarize
-        min_length: Minimum length of summary (default: 30)
-        max_length: Maximum length of summary (default: 100)
-        do_sample: Whether to use sampling for generation (default: False)
+        min_length: Minimum summary length in tokens (default: 40)
+        max_length: Maximum summary length in tokens (default: 120)
+        do_sample: Use sampling vs beam search (default: False)
+        num_beams: Number of beams for beam search (default: 4)
+        temperature: Sampling temperature (default: 1.0)
+        timeout_seconds: Maximum inference time (default: 30s)
         
     Returns:
-        Generated summary text or None if summarization fails
+        High-quality summary text or None if all methods fail
         
     Example:
-        >>> summary = summarize_text("Long research abstract...", max_length=80)
-        >>> print(summary)
+        >>> summary = summarize_text(
+        ...     "Microgravity causes bone loss in astronauts...", 
+        ...     max_length=80,
+        ...     num_beams=4
+        ... )
+        >>> print(f"Impact Summary: {summary}")
     """
-    if not text or len(text.strip()) < 50:
-        log("Text too short for summarization")
+    # Input validation
+    if not text or not isinstance(text, str):
+        log("❌ Invalid input: text must be non-empty string")
         return None
+        
+    clean_text = text.strip()
+    if len(clean_text) < 50:
+        log(f"⚠️ Text too short for summarization ({len(clean_text)} chars)")
+        return clean_text if len(clean_text) > 0 else None
+    
+    # Parameter validation
+    min_length = max(10, min(min_length, max_length - 10))
+    max_length = max(min_length + 10, max_length)
     
     summarizer = load_summarizer()
     if summarizer is None:
-        return _fallback_summarization(text, max_length)
+        log("🔄 Using fallback summarization method")
+        return _enhanced_fallback_summarization(clean_text, max_length)
     
     try:
-        log(f"Summarizing text ({len(text)} chars)...")
+        log(f"🤖 AI summarizing text ({len(clean_text)} chars) with {num_beams} beams...")
         
-        # Generate summary with optimized parameters
-        result = summarizer(
-            text,
-            min_length=min_length,
-            max_length=max_length,
-            do_sample=do_sample,
-            truncation=True,
-            # Additional optimization parameters
-            no_repeat_ngram_size=3,
-            early_stopping=True
-        )
+        # Add space biology impact focus to prompt
+        impact_prompt = f"Summarize the space biology research impacts and key findings: {clean_text}"
         
-        summary = result[0]['summary_text']
-        log(f"✓ Summary generated ({len(summary)} chars)")
-        return summary
+
+        
+        # Execute with cross-platform timeout protection
+        def _execute_summarization():
+            return summarizer(
+                impact_prompt,
+                min_length=min_length,
+                max_length=max_length,
+                do_sample=do_sample,
+                num_beams=num_beams if not do_sample else 1,
+                temperature=temperature if do_sample else 1.0,
+                truncation=True,
+                # Quality enhancements
+                no_repeat_ngram_size=3,
+                early_stopping=True,
+                length_penalty=1.0,
+                repetition_penalty=1.2
+            )
+        
+        # Cross-platform timeout handling
+        import signal
+        result = None
+        if hasattr(signal, 'SIGALRM'):
+            # Unix/Linux timeout
+            def timeout_handler(signum, frame):
+                raise TimeoutError(f"Summarization timed out after {timeout_seconds}s")
+            
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout_seconds)
+            
+            try:
+                result = _execute_summarization()
+            finally:
+                signal.alarm(0)  # Clear timeout
+        else:
+            # Windows timeout using threading
+            import threading
+            import queue
+            
+            result_queue = queue.Queue()
+            exception_queue = queue.Queue()
+            
+            def summarization_thread():
+                try:
+                    res = _execute_summarization()
+                    result_queue.put(res)
+                except Exception as e:
+                    exception_queue.put(e)
+            
+            thread = threading.Thread(target=summarization_thread)
+            thread.daemon = True
+            thread.start()
+            thread.join(timeout=timeout_seconds)
+            
+            if thread.is_alive():
+                raise TimeoutError(f"Summarization timed out after {timeout_seconds}s")
+            
+            if not exception_queue.empty():
+                raise exception_queue.get()
+            
+            if not result_queue.empty():
+                result = result_queue.get()
+            else:
+                raise Exception("Summarization failed without specific error")
+        
+        # Extract and validate summary
+        if isinstance(result, list) and len(result) > 0:
+            raw_summary = result[0].get('summary_text', '')
+            
+            # Clean up prompt artifacts
+            summary = _clean_summary_text(raw_summary, impact_prompt)
+            
+            # Quality validation
+            if _validate_summary_quality(summary, clean_text):
+                log(f"✅ High-quality summary generated ({len(summary)} chars)")
+                return summary
+            else:
+                log(f"⚠️ AI summary failed quality check, using fallback")
+                return _enhanced_fallback_summarization(clean_text, max_length)
+        else:
+            log(f"❌ Invalid AI response format: {type(result)}")
+            return _enhanced_fallback_summarization(clean_text, max_length)
+            
+    except TimeoutError as e:
+        log_error(f"⏱️ Summarization timeout: {str(e)}")
+        return _enhanced_fallback_summarization(clean_text, max_length)
+    except Exception as e:
+        log_error(f"🤖 AI summarization failed: {str(e)}")
+        return _enhanced_fallback_summarization(clean_text, max_length)
+
+
+def _clean_summary_text(raw_summary: str, original_prompt: str) -> str:
+    """Clean AI-generated summary from prompt artifacts and improve readability."""
+    if not raw_summary:
+        return ""
+    
+    summary = raw_summary.strip()
+    
+    # Remove prompt prefix if it appears in summary
+    prompt_prefix = "Summarize the space biology research impacts and key findings:"
+    if summary.startswith(prompt_prefix):
+        summary = summary[len(prompt_prefix):].strip()
+    
+    # Remove common AI artifacts
+    artifacts = [
+        "Here is a summary:", "Summary:", "In summary,", "To summarize,",
+        "The text describes", "This text discusses", "The research shows"
+    ]
+    
+    for artifact in artifacts:
+        if summary.lower().startswith(artifact.lower()):
+            summary = summary[len(artifact):].strip()
+    
+    # Clean up punctuation and spacing
+    summary = ' '.join(summary.split())  # Normalize whitespace
+    
+    # Ensure proper sentence ending
+    if summary and not summary[-1] in '.!?':
+        summary += '.'
+    
+    return summary
+
+
+def _validate_summary_quality(summary: str, original_text: str) -> bool:
+    """Validate that generated summary meets quality standards."""
+    if not summary or not original_text:
+        return False
+    
+    try:
+        # Length validation
+        if len(summary) >= len(original_text):
+            log(f"❌ Summary too long: {len(summary)} vs {len(original_text)} chars")
+            return False
+        
+        if len(summary) < 20:
+            log(f"❌ Summary too short: {len(summary)} chars")
+            return False
+        
+        # Content validation
+        summary_lower = summary.lower()
+        original_lower = original_text.lower()
+        
+        # Check for key space biology terms
+        space_bio_terms = [
+            'space', 'microgravity', 'astronaut', 'mission', 'radiation', 
+            'bone', 'muscle', 'health', 'biological', 'effect', 'study',
+            'research', 'iss', 'mars', 'flight'
+        ]
+        
+        terms_in_summary = sum(1 for term in space_bio_terms if term in summary_lower)
+        terms_in_original = sum(1 for term in space_bio_terms if term in original_lower)
+        
+        # Summary should retain key domain terms
+        if terms_in_original > 0 and terms_in_summary == 0:
+            log(f"❌ Summary missing space biology context")
+            return False
+        
+        # Check for nonsensical repetition
+        words = summary_lower.split()
+        if len(set(words)) < len(words) * 0.6:  # Too many repeated words
+            log(f"❌ Summary has excessive repetition")
+            return False
+        
+        # Basic coherence check
+        if summary.count('.') == 0 and len(summary) > 50:
+            log(f"❌ Summary lacks proper sentence structure")
+            return False
+        
+        log(f"✅ Summary passed quality validation")
+        return True
         
     except Exception as e:
-        log_error(f"BART summarization failed: {str(e)}")
-        return _fallback_summarization(text, max_length)
+        log_error(f"Summary validation error: {str(e)}")
+        return False  # Fail safe
 
 
 def summarize_batch(
     texts: List[str],
-    min_length: int = 30,
-    max_length: int = 100,
+    min_length: int = 40,
+    max_length: int = 120,
     do_sample: bool = False,
-    batch_size: int = 4
+    num_beams: int = 4,
+    batch_size: int = 4,
+    show_progress: bool = True,
+    timeout_per_batch: int = 120
 ) -> List[Optional[str]]:
     """
-    Summarize multiple texts in batches for efficiency.
+    High-performance batch summarization with progress tracking and memory management.
+    
+    Features:
+    - Intelligent batch processing with memory optimization
+    - Progress tracking and ETA calculation
+    - Robust error handling with per-batch fallbacks
+    - Memory cleanup between batches
+    - Quality validation for each summary
+    - Impact-focused prompting for space biology content
     
     Args:
         texts: List of texts to summarize
-        min_length: Minimum length of summaries
-        max_length: Maximum length of summaries
-        do_sample: Whether to use sampling
-        batch_size: Number of texts to process simultaneously
+        min_length: Minimum summary length (default: 40)
+        max_length: Maximum summary length (default: 120)
+        do_sample: Use sampling vs beam search (default: False)
+        num_beams: Beam search width (default: 4)
+        batch_size: Texts per batch - adjusted for memory (default: 4)
+        show_progress: Show progress indicators (default: True)
+        timeout_per_batch: Timeout per batch in seconds (default: 120s)
         
     Returns:
-        List of summaries (None for failed summarizations)
+        List of summaries with same length as input texts
         
     Example:
-        >>> abstracts = ["Abstract 1...", "Abstract 2..."]
-        >>> summaries = summarize_batch(abstracts, max_length=80)
+        >>> abstracts = ["Space research abstract 1...", "Biology study 2..."]
+        >>> summaries = summarize_batch(abstracts, batch_size=6, num_beams=4)
+        >>> print(f"Processed {len(summaries)} abstracts")
     """
-    if not texts:
+    if not texts or len(texts) == 0:
+        log("⚠️ Empty text list provided")
         return []
+    
+    total_texts = len(texts)
+    log(f"🚀 Starting batch summarization of {total_texts} texts...")
+    
+    # Dynamic batch size adjustment based on available memory
+    optimal_batch_size = _calculate_optimal_batch_size(batch_size, total_texts)
     
     summarizer = load_summarizer()
     if summarizer is None:
-        log("Using fallback summarization for batch processing")
-        return [_fallback_summarization(text, max_length) for text in texts]
+        log("🔄 AI model unavailable - using enhanced fallback for all texts")
+        return [_enhanced_fallback_summarization(text, max_length) if text else None for text in texts]
     
     summaries = []
+    successful_count = 0
+    start_time = time.time() if show_progress else None
     
     try:
-        log(f"Batch summarizing {len(texts)} texts...")
+        # Process in optimized batches
+        total_batches = (total_texts + optimal_batch_size - 1) // optimal_batch_size
         
-        # Process in batches for memory efficiency
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
+        for batch_idx in range(0, total_texts, optimal_batch_size):
+            batch_num = batch_idx // optimal_batch_size + 1
+            batch_end = min(batch_idx + optimal_batch_size, total_texts)
+            batch = texts[batch_idx:batch_end]
             
-            # Filter valid texts
-            valid_batch = [text for text in batch if text and len(text.strip()) >= 50]
+            if show_progress:
+                progress = (batch_num / total_batches) * 100
+                elapsed = time.time() - start_time
+                eta = (elapsed / batch_num) * (total_batches - batch_num) if batch_num > 0 else 0
+                log(f"📦 Processing batch {batch_num}/{total_batches} ({progress:.1f}%) - ETA: {eta:.1f}s")
             
-            if not valid_batch:
-                # Add None for each invalid text in batch
-                summaries.extend([None] * len(batch))
-                continue
-            
+            # Process current batch with timeout protection
             try:
-                # Batch summarization
-                results = summarizer(
-                    valid_batch,
+                batch_summaries = _process_single_batch(
+                    batch=batch,
+                    summarizer=summarizer,
                     min_length=min_length,
                     max_length=max_length,
                     do_sample=do_sample,
-                    truncation=True,
-                    no_repeat_ngram_size=3,
-                    early_stopping=True
+                    num_beams=num_beams,
+                    timeout=timeout_per_batch
                 )
                 
-                # Extract summary texts
-                batch_summaries = [result['summary_text'] for result in results]
+                summaries.extend(batch_summaries)
+                successful_count += sum(1 for s in batch_summaries if s and s != "No summary available")
                 
-                # Map back to original batch (handling skipped texts)
-                valid_idx = 0
-                for text in batch:
-                    if text and len(text.strip()) >= 50:
-                        summaries.append(batch_summaries[valid_idx])
-                        valid_idx += 1
-                    else:
-                        summaries.append(None)
-                        
+                # Memory cleanup after each batch
+                _cleanup_batch_memory()
+                
             except Exception as batch_error:
-                log_error(f"Batch summarization failed: {str(batch_error)}")
-                # Fallback to individual processing for this batch
-                for text in batch:
-                    summaries.append(_fallback_summarization(text, max_length))
+                log_error(f"❌ Batch {batch_num} failed: {str(batch_error)}")
+                # Fallback processing for failed batch
+                fallback_summaries = [
+                    _enhanced_fallback_summarization(text, max_length) if text else "No summary available" 
+                    for text in batch
+                ]
+                summaries.extend(fallback_summaries)
+                successful_count += sum(1 for s in fallback_summaries if s and s != "No summary available")
         
-        log(f"✓ Batch summarization completed: {sum(1 for s in summaries if s)} successful")
+        # Final statistics
+        total_time = time.time() - start_time if start_time else 0
+        success_rate = (successful_count / total_texts) * 100 if total_texts > 0 else 0
+        
+        log(f"✅ Batch summarization completed: {successful_count}/{total_texts} successful ({success_rate:.1f}%) in {total_time:.1f}s")
         return summaries
         
     except Exception as e:
-        log_error(f"Batch summarization error: {str(e)}")
-        return [_fallback_summarization(text, max_length) for text in texts]
+        log_error(f"🚨 Critical batch processing error: {str(e)}")
+        # Complete fallback for all remaining texts
+        remaining_texts = texts[len(summaries):]
+        fallback_summaries = [
+            _enhanced_fallback_summarization(text, max_length) if text else "No summary available" 
+            for text in remaining_texts
+        ]
+        summaries.extend(fallback_summaries)
+        return summaries
+
+
+def _calculate_optimal_batch_size(requested_batch_size: int, total_texts: int) -> int:
+    """Calculate optimal batch size based on available memory and text count."""
+    try:
+        # Get available memory
+        device_info = _get_optimal_device()
+        available_memory_gb = device_info.get('memory_gb', 8.0)
+        
+        # Memory-based batch size calculation
+        # Rough estimate: 0.5GB per text for BART processing
+        memory_based_batch = max(1, int(available_memory_gb * 0.4 / 0.5))
+        
+        # Choose conservative batch size
+        optimal_batch = min(requested_batch_size, memory_based_batch, 8)  # Max 8 per batch
+        
+        if optimal_batch != requested_batch_size:
+            log(f"💾 Adjusted batch size from {requested_batch_size} to {optimal_batch} for memory optimization")
+        
+        return optimal_batch
+        
+    except Exception as e:
+        log_error(f"Batch size calculation error: {str(e)}")
+        return min(requested_batch_size, 4)  # Safe fallback
+
+
+def _process_single_batch(
+    batch: List[str], 
+    summarizer: object,
+    min_length: int,
+    max_length: int, 
+    do_sample: bool,
+    num_beams: int,
+    timeout: int
+) -> List[str]:
+    """Process a single batch with cross-platform timeout protection and quality validation."""
+    import signal
+    
+    # Prepare texts with impact prompting
+    processed_texts = []
+    text_indices = []  # Track which original indices have valid texts
+    
+    for i, text in enumerate(batch):
+        if text and len(text.strip()) >= 50:
+            impact_prompt = f"Summarize the space biology research impacts and key findings: {text.strip()}"
+            processed_texts.append(impact_prompt)
+            text_indices.append(i)
+    
+    # Initialize results for the batch
+    batch_results = ["No summary available"] * len(batch)
+    
+    if not processed_texts:
+        return batch_results
+    
+    # Cross-platform timeout processing
+    def _execute_batch_summarization():
+        return summarizer(
+            processed_texts,
+            min_length=min_length,
+            max_length=max_length,
+            do_sample=do_sample,
+            num_beams=num_beams if not do_sample else 1,
+            truncation=True,
+            no_repeat_ngram_size=3,
+            early_stopping=True,
+            length_penalty=1.0,
+            repetition_penalty=1.2
+        )
+    
+    import signal
+    results = None
+    try:
+        if hasattr(signal, 'SIGALRM'):
+            # Unix/Linux timeout
+            def timeout_handler(signum, frame):
+                raise TimeoutError(f"Batch processing timed out after {timeout}s")
+            
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout)
+            
+            try:
+                results = _execute_batch_summarization()
+            finally:
+                signal.alarm(0)  # Clear timeout
+        else:
+            # Windows timeout using threading
+            import threading
+            import queue
+            
+            result_queue = queue.Queue()
+            exception_queue = queue.Queue()
+            
+            def batch_thread():
+                try:
+                    res = _execute_batch_summarization()
+                    result_queue.put(res)
+                except Exception as e:
+                    exception_queue.put(e)
+            
+            thread = threading.Thread(target=batch_thread)
+            thread.daemon = True
+            thread.start()
+            thread.join(timeout=timeout)
+            
+            if thread.is_alive():
+                raise TimeoutError(f"Batch processing timed out after {timeout}s")
+            
+            if not exception_queue.empty():
+                raise exception_queue.get()
+            
+            if not result_queue.empty():
+                results = result_queue.get()
+            else:
+                raise Exception("Batch processing failed")
+        
+        # Extract and validate summaries
+        if results:
+            for i, result in enumerate(results):
+                if i < len(text_indices):
+                    original_idx = text_indices[i]
+                    original_text = batch[original_idx]
+                    
+                    if isinstance(result, dict) and 'summary_text' in result:
+                        raw_summary = result['summary_text']
+                        clean_summary = _clean_summary_text(raw_summary, processed_texts[i])
+                        
+                        # Quality validation
+                        if _validate_summary_quality(clean_summary, original_text):
+                            batch_results[original_idx] = clean_summary
+                        else:
+                            # Use fallback for poor quality AI summary
+                            batch_results[original_idx] = _enhanced_fallback_summarization(original_text, max_length)
+        
+        return batch_results
+        
+    except TimeoutError:
+        log_error(f"⏱️ Batch timed out, using fallback for all texts")
+        # Fallback for timeout
+        for i in text_indices:
+            batch_results[i] = _enhanced_fallback_summarization(batch[i], max_length)
+        return batch_results
+
+
+def _cleanup_batch_memory():
+    """Clean up memory between batches to prevent accumulation."""
+    try:
+        import gc
+        gc.collect()
+        
+        if torch and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
+    except Exception as e:
+        # Memory cleanup is not critical, just log and continue
+        pass
 
 
 def _fallback_summarization(text: str, max_length: int = 100) -> Optional[str]:
@@ -285,79 +892,181 @@ def get_summarizer_info() -> Dict[str, Union[str, bool]]:
     return info
 
 
-def summarize_abstracts(df: pd.DataFrame) -> pd.DataFrame:
+def summarize_abstracts(df: pd.DataFrame, batch_size: int = 6, show_progress: bool = True) -> pd.DataFrame:
     """
-    Add summary column to DataFrame by batch processing abstracts with impact focus.
+    Process DataFrame abstracts with advanced AI summarization and comprehensive error handling.
     
-    Processes df['abstract'] column using BART summarizer with space biology impact
-    prompting. Handles empty/missing abstracts gracefully and uses batch processing
-    for optimal performance during hackathon demos.
+    Features:
+    - High-performance batch processing optimized for hackathon demos
+    - Impact-focused prompting for space biology research
+    - Robust fallback chain for reliability
+    - Progress tracking with ETA calculation
+    - Memory optimization for large datasets
+    - Quality validation and metrics
+    - Graceful handling of missing/invalid data
     
     Args:
-        df: DataFrame containing 'abstract' column
+        df: DataFrame with 'abstract' column (required)
+        batch_size: Texts per processing batch (default: 6, auto-adjusted)
+        show_progress: Display progress indicators (default: True)
         
     Returns:
-        DataFrame with added 'summary' column containing impact-focused summaries
+        DataFrame with new 'summary' column containing 50-100 word impact summaries
         
     Example:
-        >>> df = pd.DataFrame({'abstract': ['Long abstract about bone loss...']})
-        >>> df_with_summaries = summarize_abstracts(df)
-        >>> print(df_with_summaries['summary'].iloc[0])
+        >>> research_df = pd.DataFrame({
+        ...     'title': ['Bone Loss Study', 'Muscle Atrophy Research'],
+        ...     'abstract': ['Microgravity causes...', 'Space environments lead...']
+        ... })
+        >>> summarized_df = summarize_abstracts(research_df)
+        >>> print(summarized_df['summary'].iloc[0])
     """
-    log(f"Summarizing abstracts for {len(df)} publications...")
+    import time
+    start_time = time.time()
     
-    if df.empty:
-        log("Empty DataFrame - returning with empty summary column")
-        df['summary'] = []
-        return df
+    # Input validation and logging
+    log(f"🚀 Starting abstract summarization for {len(df)} publications...")
     
-    # Ensure abstract column exists
+    if df is None or df.empty:
+        log("⚠️ Empty or None DataFrame provided")
+        empty_df = pd.DataFrame() if df is None else df.copy()
+        empty_df['summary'] = []
+        return empty_df
+    
+    # Column validation
     if 'abstract' not in df.columns:
-        log_error("No 'abstract' column found in DataFrame")
-        df['summary'] = ['No abstract available'] * len(df)
-        return df
+        log_error("❌ Missing 'abstract' column in DataFrame")
+        df_copy = df.copy()
+        df_copy['summary'] = ['No abstract available'] * len(df)
+        return df_copy
     
-    # Get summarizer
-    summarizer = load_summarizer()
-    
-    # Prepare abstracts for processing
+    # Prepare abstracts with data cleaning
     abstracts = df['abstract'].fillna('').astype(str)
+    valid_count = sum(1 for abstract in abstracts if len(abstract.strip()) >= 50)
     
-    # Create impact-focused prompts for better summarization
-    prompted_abstracts = []
-    for abstract in abstracts:
-        if not abstract or len(abstract.strip()) < 50:
-            prompted_abstracts.append('')
-        else:
-            # Add impact-focused prompt to guide summarization
-            impact_prompt = f"Summarize the space biology impacts and key findings: {abstract}"
-            prompted_abstracts.append(impact_prompt)
+    log(f"📊 Dataset analysis: {valid_count}/{len(abstracts)} abstracts suitable for AI summarization")
     
-    if summarizer is not None:
-        # Use BART model with batch processing
-        summaries = _batch_process_abstracts_with_bart(
-            prompted_abstracts, 
-            summarizer,
-            batch_size=4,
-            max_length=100
+    if valid_count == 0:
+        log("⚠️ No valid abstracts found (all too short)")
+        df_copy = df.copy()
+        df_copy['summary'] = ['Abstract too short for summarization'] * len(df)
+        return df_copy
+    
+    # Initialize summarization system
+    summarizer_info = get_summarizer_info()
+    log(f"🤖 Summarization config: {summarizer_info['model_name']} on {summarizer_info['device']}")
+    
+    try:
+        # High-performance batch processing
+        log(f"⏳ Processing {len(abstracts)} abstracts with batch_size={batch_size}...")
+        
+        summaries = summarize_batch(
+            texts=abstracts.tolist(),
+            min_length=40,
+            max_length=120,  # Optimized for 50-100 word summaries
+            do_sample=False,  # Use beam search for quality
+            num_beams=4,      # Balance quality vs speed
+            batch_size=batch_size,
+            show_progress=show_progress,
+            timeout_per_batch=120  # 2 minutes per batch
         )
-    else:
-        # Use fallback method
-        log("Using fallback summarization for abstracts")
-        summaries = _batch_process_abstracts_fallback(
-            abstracts,  # Use original abstracts for fallback
-            max_length=100
-        )
+        
+        # Add summaries to DataFrame
+        df_result = df.copy()
+        df_result['summary'] = summaries
+        
+        # Calculate and log comprehensive statistics
+        stats = _calculate_summarization_stats(abstracts.tolist(), summaries, start_time)
+        _log_summarization_results(stats)
+        
+        # Optional: Add metadata columns for analysis
+        if show_progress:
+            df_result['summary_length'] = [len(s) if s else 0 for s in summaries]
+            df_result['summarization_method'] = [
+                'AI' if s and s != 'No summary available' and 'fallback' not in s.lower() else 'Fallback'
+                for s in summaries
+            ]
+        
+        log(f"✅ Abstract summarization pipeline completed successfully in {time.time() - start_time:.1f}s")
+        return df_result
+        
+    except Exception as e:
+        log_error(f"🚨 Critical error in abstract summarization: {str(e)}")
+        
+        # Emergency fallback: process with simple method
+        log("🆘 Activating emergency fallback summarization...")
+        
+        try:
+            emergency_summaries = [
+                _enhanced_fallback_summarization(abstract, 100) if abstract and len(abstract.strip()) >= 50 
+                else 'No summary available'
+                for abstract in abstracts
+            ]
+            
+            df_result = df.copy()
+            df_result['summary'] = emergency_summaries
+            
+            emergency_success = sum(1 for s in emergency_summaries if s != 'No summary available')
+            log(f"🆘 Emergency fallback completed: {emergency_success}/{len(abstracts)} summaries generated")
+            
+            return df_result
+            
+        except Exception as emergency_error:
+            log_error(f"🚨 Emergency fallback also failed: {str(emergency_error)}")
+            
+            # Final failsafe
+            df_result = df.copy()
+            df_result['summary'] = ['Summarization system unavailable'] * len(df)
+            return df_result
+
+
+def _calculate_summarization_stats(abstracts: List[str], summaries: List[str], start_time: float) -> Dict:
+    """Calculate comprehensive statistics for summarization performance."""
+    total_time = time.time() - start_time
     
-    # Add summaries to DataFrame
-    df = df.copy()
-    df['summary'] = summaries
+    # Count statistics
+    total_abstracts = len(abstracts)
+    valid_abstracts = sum(1 for a in abstracts if a and len(a.strip()) >= 50)
+    successful_summaries = sum(1 for s in summaries if s and s != 'No summary available' and len(s.strip()) > 20)
+    ai_summaries = sum(1 for s in summaries if s and 'fallback' not in s.lower() and s != 'No summary available')
     
-    # Log statistics
-    successful_summaries = sum(1 for s in summaries if s and s.strip() and s != 'No summary available')
-    log(f"✓ Abstract summarization completed: {successful_summaries}/{len(df)} successful")
+    # Length statistics
+    abstract_lengths = [len(a) for a in abstracts if a]
+    summary_lengths = [len(s) for s in summaries if s and s != 'No summary available']
     
-    return df
+    # Compression statistics
+    compression_ratios = []
+    for abstract, summary in zip(abstracts, summaries):
+        if abstract and summary and summary != 'No summary available' and len(abstract.strip()) > 0:
+            ratio = len(summary) / len(abstract)
+            compression_ratios.append(ratio)
+    
+    return {
+        'total_abstracts': total_abstracts,
+        'valid_abstracts': valid_abstracts, 
+        'successful_summaries': successful_summaries,
+        'ai_summaries': ai_summaries,
+        'fallback_summaries': successful_summaries - ai_summaries,
+        'success_rate': (successful_summaries / total_abstracts * 100) if total_abstracts > 0 else 0,
+        'ai_success_rate': (ai_summaries / valid_abstracts * 100) if valid_abstracts > 0 else 0,
+        'avg_abstract_length': sum(abstract_lengths) / len(abstract_lengths) if abstract_lengths else 0,
+        'avg_summary_length': sum(summary_lengths) / len(summary_lengths) if summary_lengths else 0,
+        'avg_compression_ratio': sum(compression_ratios) / len(compression_ratios) if compression_ratios else 0,
+        'processing_time': total_time,
+        'throughput': total_abstracts / total_time if total_time > 0 else 0
+    }
+
+
+def _log_summarization_results(stats: Dict):
+    """Log comprehensive summarization results and performance metrics."""
+    log("📈 SUMMARIZATION RESULTS:")
+    log(f"   • Total processed: {stats['total_abstracts']} abstracts")
+    log(f"   • Successful summaries: {stats['successful_summaries']} ({stats['success_rate']:.1f}%)")
+    log(f"   • AI summaries: {stats['ai_summaries']} ({stats['ai_success_rate']:.1f}% of valid)")
+    log(f"   • Fallback summaries: {stats['fallback_summaries']}")
+    log(f"   • Average lengths: {stats['avg_abstract_length']:.0f} → {stats['avg_summary_length']:.0f} chars")
+    log(f"   • Compression ratio: {stats['avg_compression_ratio']:.2f}x")
+    log(f"   • Processing time: {stats['processing_time']:.1f}s ({stats['throughput']:.1f} abstracts/sec)")
 
 
 def _batch_process_abstracts_with_bart(

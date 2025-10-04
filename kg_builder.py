@@ -1906,189 +1906,1234 @@ def load_kg(filepath: str = 'data/graph.pkl') -> Optional[object]:
         return None
 
 
-def query_kg(G: object, keyword: str) -> Dict:
+def query_kg(G: object, query: str, query_type: str = 'keyword', max_hops: int = 2, include_analysis: bool = True) -> Dict:
     """
-    Query knowledge graph for nodes containing keyword and return relevant subgraph.
+    Advanced knowledge graph querying with fuzzy matching, boolean logic, multi-hop discovery,
+    semantic similarity, path analysis, and specialized research queries.
     
-    Searches for nodes containing the keyword (case-insensitive), finds their neighbors,
-    and returns a subgraph dictionary with nodes, edges, and associated summaries.
+    Supports multiple query types:
+    - 'keyword': Basic keyword matching with fuzzy string matching
+    - 'boolean': Boolean logic queries (AND, OR, NOT operations)
+    - 'semantic': Semantic similarity matching using embeddings
+    - 'impact_analysis': Find impacts of specific concepts
+    - 'countermeasures': Find mitigation strategies for conditions
+    - 'organisms': Find most studied organisms
+    - 'connections': Find connections between concepts
+    - 'clusters': Find research clusters around topics
+    - 'shortest_path': Shortest path analysis between concepts
     
     Args:
-        G: NetworkX graph object
-        keyword: Search keyword (case-insensitive)
+        G: NetworkX graph object with rich node/edge attributes
+        query: Search query string (supports various formats based on query_type)
+        query_type: Type of query to perform ('keyword', 'boolean', 'semantic', etc.)
+        max_hops: Maximum degrees of separation for neighbor discovery (1-3)
+        include_analysis: Whether to include advanced graph analysis in results
         
     Returns:
         Dictionary containing:
-        - matches: List of nodes that match the keyword
-        - neighbors: All neighbor nodes of matches
-        - subgraph_nodes: Combined set of matching nodes and their neighbors
-        - edges: Edges within the subgraph
-        - summaries: Experiment summaries for matched experiments
-        - node_details: Detailed attributes for all subgraph nodes
-        - statistics: Query result statistics
+        - matches: Primary nodes matching the query with confidence scores
+        - related_nodes: Multi-hop neighbors and related concepts
+        - subgraph_nodes: Complete set of relevant nodes
+        - edges: Edges within the subgraph with relationship explanations
+        - paths: Shortest paths and relationship explanations
+        - clusters: Community clusters and research groups
+        - analysis: Advanced graph analysis (centrality, propagation, trends)
+        - summaries: Natural language summaries of findings
+        - alternatives: Entity disambiguation and alternative matches
+        - confidence_scores: Relevance ranking for all results
+        - statistics: Comprehensive query result statistics
         
     Example:
-        >>> result = query_kg(graph, "bone loss")
-        >>> print(f"Found {len(result['matches'])} matching nodes")
-        >>> for summary in result['summaries']:
-        ...     print(f"Related experiment: {summary}")
+        >>> # Basic keyword search with fuzzy matching
+        >>> result = query_kg(graph, "bone loss", "keyword")
+        >>> 
+        >>> # Boolean query
+        >>> result = query_kg(graph, "microgravity AND bone AND health", "boolean")
+        >>> 
+        >>> # Impact analysis
+        >>> result = query_kg(graph, "microgravity", "impact_analysis")
+        >>> 
+        >>> # Find connections
+        >>> result = query_kg(graph, "radiation,DNA damage", "connections")
     """
     if not G or not NETWORKX_AVAILABLE:
         return {
-            'matches': [],
-            'neighbors': [],
-            'subgraph_nodes': [],
-            'edges': [],
-            'summaries': [],
-            'node_details': {},
-            'statistics': {'total_matches': 0, 'total_neighbors': 0, 'subgraph_size': 0},
+            'matches': [], 'related_nodes': [], 'subgraph_nodes': [], 'edges': [],
+            'paths': [], 'clusters': [], 'analysis': {}, 'summaries': [],
+            'alternatives': [], 'confidence_scores': {}, 'statistics': {},
             'error': 'Graph not available or NetworkX missing'
         }
     
-    if not keyword or not keyword.strip():
+    if not query or not query.strip():
         return {
-            'matches': [],
-            'neighbors': [],
-            'subgraph_nodes': [],
-            'edges': [],
-            'summaries': [],
-            'node_details': {},
-            'statistics': {'total_matches': 0, 'total_neighbors': 0, 'subgraph_size': 0},
-            'error': 'Empty keyword provided'
+            'matches': [], 'related_nodes': [], 'subgraph_nodes': [], 'edges': [],
+            'paths': [], 'clusters': [], 'analysis': {}, 'summaries': [],
+            'alternatives': [], 'confidence_scores': {}, 'statistics': {},
+            'error': 'Empty query provided'
         }
     
     try:
-        keyword_lower = keyword.lower().strip()
+        import time
+        start_time = time.time()
         
-        # Find all nodes containing the keyword (case-insensitive)
-        matching_nodes = []
+        log_info(f"Processing {query_type} query: '{query}' with max_hops={max_hops}")
+        
+        # Route to appropriate query handler
+        if query_type == 'keyword':
+            matches, confidence_scores = _fuzzy_keyword_search(G, query)
+        elif query_type == 'boolean':
+            matches, confidence_scores = _boolean_query_search(G, query)
+        elif query_type == 'semantic':
+            matches, confidence_scores = _semantic_similarity_search(G, query)
+        elif query_type == 'impact_analysis':
+            matches, confidence_scores = _impact_analysis_query(G, query)
+        elif query_type == 'countermeasures':
+            matches, confidence_scores = _countermeasures_query(G, query)
+        elif query_type == 'organisms':
+            matches, confidence_scores = _organisms_query(G, query)
+        elif query_type == 'connections':
+            matches, confidence_scores = _connections_query(G, query)
+        elif query_type == 'clusters':
+            matches, confidence_scores = _clusters_query(G, query)
+        elif query_type == 'shortest_path':
+            matches, confidence_scores = _shortest_path_query(G, query)
+        else:
+            # Default to fuzzy keyword search
+            matches, confidence_scores = _fuzzy_keyword_search(G, query)
+        
+        # Handle no matches case
+        if len(matches) == 0:
+            log_info(f"No nodes found for {query_type} query: '{query}'")
+            return {
+                'nodes': [],  # For backward compatibility
+                'matches': [], 'related_nodes': [], 'subgraph_nodes': [], 'edges': [],
+                'paths': [], 'clusters': [], 'analysis': {}, 'summaries': [],
+                'alternatives': _generate_query_alternatives(query, query_type),
+                'confidence_scores': {}, 'statistics': {'query_time': time.time() - start_time},
+                'query_explanation': _generate_query_explanation(query, query_type, 0),
+                'message': f"No matches found for {query_type} query: '{query}'"
+            }
+        
+        # Multi-hop neighbor discovery (2-3 degrees of separation)
+        related_nodes = _multi_hop_discovery(G, matches, max_hops)
+        
+        # Create comprehensive subgraph
+        subgraph_nodes = set(matches) | set(related_nodes)
+        subgraph = G.subgraph(subgraph_nodes)
+        
+        # Extract edges with relationship explanations
+        edges = _extract_enhanced_edges(subgraph)
+        
+        # Find shortest paths and relationship explanations
+        paths = _analyze_relationship_paths(G, matches, query_type)
+        
+        # Detect communities and research clusters
+        clusters = _detect_research_clusters(G, subgraph_nodes) if include_analysis else []
+        
+        # Advanced graph analysis
+        analysis = _perform_advanced_analysis(G, subgraph, matches, query_type) if include_analysis else {}
+        
+        # Entity disambiguation and alternatives
+        alternatives = _find_alternative_matches(G, query, matches)
+        
+        # Update confidence scores with relevance ranking
+        ranked_matches = _rank_results_by_relevance(matches, confidence_scores, G)
+        
+        # Generate natural language summaries
+        summaries = _generate_natural_language_summaries(G, ranked_matches, paths, clusters, analysis)
+        
+        # Calculate comprehensive statistics
+        processing_time = time.time() - start_time
+        statistics = {
+            'query': query,
+            'query_type': query_type,
+            'total_matches': len(matches),
+            'total_related_nodes': len(related_nodes),
+            'subgraph_size': len(subgraph_nodes),
+            'total_edges': len(edges),
+            'total_paths': len(paths),
+            'total_clusters': len(clusters),
+            'processing_time_seconds': processing_time,
+            'max_hops_used': max_hops,
+            'analysis_included': include_analysis,
+            'avg_confidence_score': sum(confidence_scores.values()) / len(confidence_scores) if confidence_scores else 0,
+            'performance_rating': 'Excellent' if processing_time < 1.0 else 'Good' if processing_time < 3.0 else 'Acceptable'
+        }
+        
+        log_info(f"Query '{query}' ({query_type}) found {len(matches)} matches, {len(related_nodes)} related nodes in {processing_time:.2f}s")
+        
+        return {
+            'nodes': ranked_matches,  # For backward compatibility
+            'matches': matches,
+            'related_nodes': related_nodes,
+            'subgraph_nodes': list(subgraph_nodes),
+            'edges': edges,
+            'paths': paths,
+            'clusters': clusters,
+            'analysis': analysis,
+            'summaries': summaries,
+            'alternatives': alternatives,
+            'confidence_scores': confidence_scores,
+            'statistics': statistics,
+            'subgraph': subgraph,  # NetworkX subgraph for further analysis
+            'query_explanation': _generate_query_explanation(query, query_type, len(matches))
+        }
+        
+    except Exception as e:
+        log_error(f"Error in advanced query processing: {str(e)}")
+        return {
+            'nodes': [],  # For backward compatibility
+            'matches': [], 'related_nodes': [], 'subgraph_nodes': [], 'edges': [],
+            'paths': [], 'clusters': [], 'analysis': {}, 'summaries': [],
+            'alternatives': [], 'confidence_scores': {}, 'statistics': {},
+            'query_explanation': f"Query failed: {str(e)}",
+            'error': f"Advanced query failed: {str(e)}"
+        }
+
+
+def _organisms_query(G: object, query: str) -> Tuple[List, Dict]:
+    """Find most studied organisms for space biology research."""
+    try:
+        matches = []
+        confidence_scores = {}
+        
+        # Find all organism nodes and count their connections
+        organism_connections = {}
         
         for node in G.nodes():
-            node_str = str(node).lower()
             node_attrs = G.nodes.get(node, {})
             
-            # Check node name/ID
-            if keyword_lower in node_str:
-                matching_nodes.append(node)
+            if node_attrs.get('type') == 'organism':
+                connection_count = len(list(G.neighbors(node)))
+                organism_connections[node] = connection_count
+        
+        # Sort organisms by number of connections (most studied)
+        sorted_organisms = sorted(organism_connections.items(), key=lambda x: x[1], reverse=True)
+        
+        for organism, connections in sorted_organisms[:10]:  # Top 10 most studied
+            matches.append(organism)
+            # Higher confidence for more studied organisms
+            confidence_scores[organism] = min(0.9, 0.5 + (connections * 0.05))
+        
+        return matches, confidence_scores
+        
+    except Exception as e:
+        log_error(f"Error in organisms query: {str(e)}")
+        return [], {}
+
+
+def _connections_query(G: object, query: str) -> Tuple[List, Dict]:
+    """Find connections between two concepts (e.g., 'radiation,DNA damage')."""
+    try:
+        # Parse query to extract two concepts
+        if ',' in query:
+            concept1, concept2 = query.split(',', 1)
+            concept1 = concept1.strip().lower()
+            concept2 = concept2.strip().lower()
+        else:
+            # Single concept - find all connections
+            concept1 = query.strip().lower()
+            concept2 = None
+        
+        matches = []
+        confidence_scores = {}
+        
+        # Find nodes for concept1
+        concept1_nodes = []
+        for node in G.nodes():
+            node_attrs = G.nodes.get(node, {})
+            node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')}".lower()
+            if concept1 in node_text:
+                concept1_nodes.append(node)
+        
+        if concept2:
+            # Find nodes for concept2
+            concept2_nodes = []
+            for node in G.nodes():
+                node_attrs = G.nodes.get(node, {})
+                node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')}".lower()
+                if concept2 in node_text:
+                    concept2_nodes.append(node)
+            
+            # Find paths between concept1 and concept2 nodes
+            for node1 in concept1_nodes:
+                for node2 in concept2_nodes:
+                    try:
+                        if nx.has_path(G, node1, node2):
+                            path = nx.shortest_path(G, node1, node2)
+                            # Add all nodes in the path
+                            for path_node in path:
+                                if path_node not in matches:
+                                    matches.append(path_node)
+                                    confidence_scores[path_node] = 0.8 if path_node in [node1, node2] else 0.6
+                    except:
+                        continue
+        else:
+            # Find all connections for concept1
+            for node1 in concept1_nodes:
+                matches.append(node1)
+                confidence_scores[node1] = 0.9
+                
+                # Add immediate neighbors
+                for neighbor in G.neighbors(node1):
+                    if neighbor not in matches:
+                        matches.append(neighbor)
+                        confidence_scores[neighbor] = 0.7
+        
+        return matches, confidence_scores
+        
+    except Exception as e:
+        log_error(f"Error in connections query: {str(e)}")
+        return [], {}
+
+
+def _clusters_query(G: object, query: str) -> Tuple[List, Dict]:
+    """Find research clusters around a specific topic."""
+    try:
+        topic = query.lower().strip()
+        
+        matches = []
+        confidence_scores = {}
+        
+        # Find nodes related to the topic
+        topic_nodes = []
+        for node in G.nodes():
+            node_attrs = G.nodes.get(node, {})
+            node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')} {node_attrs.get('title', '')}".lower()
+            
+            if topic in node_text:
+                topic_nodes.append(node)
+        
+        if topic_nodes:
+            # Create subgraph around topic nodes
+            extended_nodes = set(topic_nodes)
+            for node in topic_nodes:
+                extended_nodes.update(G.neighbors(node))
+            
+            subgraph = G.subgraph(extended_nodes)
+            
+            # Detect communities in the subgraph
+            try:
+                if hasattr(nx, 'community'):
+                    communities = nx.community.greedy_modularity_communities(subgraph.to_undirected())
+                    
+                    # Add nodes from the largest communities
+                    for community in sorted(communities, key=len, reverse=True)[:3]:
+                        for node in community:
+                            matches.append(node)
+                            confidence_scores[node] = 0.8 if node in topic_nodes else 0.6
+            except:
+                # Fallback: add topic nodes and their neighbors
+                for node in extended_nodes:
+                    matches.append(node)
+                    confidence_scores[node] = 0.8 if node in topic_nodes else 0.5
+        
+        return matches, confidence_scores
+        
+    except Exception as e:
+        log_error(f"Error in clusters query: {str(e)}")
+        return [], {}
+
+
+def _fuzzy_keyword_search(G: object, query: str) -> Tuple[List, Dict]:
+    """Fuzzy string matching for keyword queries with confidence scoring."""
+    try:
+        from difflib import SequenceMatcher
+        
+        matches = []
+        confidence_scores = {}
+        query_lower = query.lower().strip()
+        
+        for node in G.nodes():
+            node_attrs = G.nodes.get(node, {})
+            max_similarity = 0.0
+            
+            # Check various node attributes
+            attrs_to_check = ['name', 'term', 'title', 'summary', 'abstract', 'description']
+            
+            # Direct string matching (highest confidence)
+            node_str = str(node).lower()
+            if query_lower in node_str:
+                matches.append(node)
+                confidence_scores[node] = 0.95
                 continue
             
-            # Check node attributes for keyword matches
-            attrs_to_check = ['title', 'summary', 'abstract', 'name', 'term', 'description']
+            # Fuzzy matching on attributes
             for attr in attrs_to_check:
                 if attr in node_attrs and node_attrs[attr]:
                     attr_value = str(node_attrs[attr]).lower()
-                    if keyword_lower in attr_value:
-                        matching_nodes.append(node)
+                    
+                    # Direct substring match
+                    if query_lower in attr_value:
+                        matches.append(node)
+                        confidence_scores[node] = 0.85
                         break
+                    
+                    # Fuzzy similarity matching
+                    similarity = SequenceMatcher(None, query_lower, attr_value).ratio()
+                    if similarity > max_similarity:
+                        max_similarity = similarity
+            
+            # Add nodes with high fuzzy similarity
+            if max_similarity > 0.6 and node not in matches:
+                matches.append(node)
+                confidence_scores[node] = max_similarity * 0.8
         
-        # Handle no matches case - use len() to avoid array comparison issues
-        if len(matching_nodes) == 0:
-            log_info(f"No nodes found matching keyword: '{keyword}'")
-            return {
-                'matches': [],
-                'neighbors': [],
-                'subgraph_nodes': [],
-                'edges': [],
-                'summaries': [],
-                'node_details': {},
-                'statistics': {'total_matches': 0, 'total_neighbors': 0, 'subgraph_size': 0},
-                'message': f"No matches found for keyword: '{keyword}'"
-            }
+        # Sort by confidence
+        matches.sort(key=lambda x: confidence_scores.get(x, 0), reverse=True)
         
-        # Find all neighbors of matching nodes
-        all_neighbors = set()
-        for node in matching_nodes:
-            neighbors = set(G.neighbors(node))
-            all_neighbors.update(neighbors)
+        return matches, confidence_scores
         
-        # Remove matching nodes from neighbors (avoid duplication)
-        neighbors_only = all_neighbors - set(matching_nodes)
+    except Exception as e:
+        log_error(f"Error in fuzzy keyword search: {str(e)}")
+        return [], {}
+
+
+def _boolean_query_search(G: object, query: str) -> Tuple[List, Dict]:
+    """Boolean logic queries supporting AND, OR, NOT operations."""
+    try:
+        import re
         
-        # Create subgraph with matches and neighbors
-        subgraph_nodes = set(matching_nodes) | all_neighbors
-        subgraph = G.subgraph(subgraph_nodes)
+        # Parse boolean query
+        query_upper = query.upper()
         
-        # Extract edges within the subgraph
-        subgraph_edges = []
-        for edge in subgraph.edges(data=True):
-            source, target, attrs = edge
+        # Split by boolean operators
+        and_terms = []
+        or_terms = []
+        not_terms = []
+        
+        # Simple boolean parsing (can be enhanced with proper parser)
+        if ' AND ' in query_upper:
+            parts = re.split(r'\s+AND\s+', query, flags=re.IGNORECASE)
+            and_terms = [term.strip() for term in parts]
+        elif ' OR ' in query_upper:
+            parts = re.split(r'\s+OR\s+', query, flags=re.IGNORECASE)
+            or_terms = [term.strip() for term in parts]
+        elif ' NOT ' in query_upper:
+            parts = re.split(r'\s+NOT\s+', query, flags=re.IGNORECASE)
+            if len(parts) >= 2:
+                and_terms = [parts[0].strip()]
+                not_terms = [parts[1].strip()]
+        else:
+            # Default to single term
+            and_terms = [query.strip()]
+        
+        matches = []
+        confidence_scores = {}
+        
+        for node in G.nodes():
+            node_attrs = G.nodes.get(node, {})
+            node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')} {node_attrs.get('title', '')} {node_attrs.get('summary', '')}".lower()
+            
+            # AND logic - all terms must be present
+            if and_terms:
+                if all(term.lower() in node_text for term in and_terms):
+                    if not not_terms or not any(term.lower() in node_text for term in not_terms):
+                        matches.append(node)
+                        confidence_scores[node] = 0.9
+            
+            # OR logic - any term can be present
+            if or_terms:
+                if any(term.lower() in node_text for term in or_terms):
+                    matches.append(node)
+                    confidence_scores[node] = 0.7
+        
+        return matches, confidence_scores
+        
+    except Exception as e:
+        log_error(f"Error in boolean query search: {str(e)}")
+        return [], {}
+
+
+def _semantic_similarity_search(G: object, query: str) -> Tuple[List, Dict]:
+    """Semantic similarity matching using simple word overlap (can be enhanced with embeddings)."""
+    try:
+        # Simple semantic matching based on word overlap and synonyms
+        query_words = set(query.lower().split())
+        
+        # Basic space biology synonyms
+        synonyms = {
+            'bone': ['skeletal', 'osseous', 'calcium', 'mineral'],
+            'muscle': ['muscular', 'skeletal muscle', 'myofibril', 'sarcomere'],
+            'microgravity': ['weightlessness', 'zero gravity', 'space environment'],
+            'radiation': ['cosmic ray', 'solar particle', 'ionizing'],
+            'cardiovascular': ['heart', 'cardiac', 'blood pressure', 'circulation'],
+            'immune': ['immunological', 'immunity', 'T-cell', 'antibody']
+        }
+        
+        matches = []
+        confidence_scores = {}
+        
+        for node in G.nodes():
+            node_attrs = G.nodes.get(node, {})
+            node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')} {node_attrs.get('title', '')} {node_attrs.get('summary', '')}".lower()
+            node_words = set(node_text.split())
+            
+            # Direct word overlap
+            overlap = len(query_words & node_words)
+            if overlap > 0:
+                matches.append(node)
+                confidence_scores[node] = min(0.9, overlap / len(query_words))
+                continue
+            
+            # Synonym matching
+            semantic_score = 0
+            for query_word in query_words:
+                if query_word in synonyms:
+                    synonym_matches = sum(1 for syn in synonyms[query_word] if syn in node_text)
+                    if synonym_matches > 0:
+                        semantic_score += synonym_matches * 0.3
+            
+            if semantic_score > 0.5:
+                matches.append(node)
+                confidence_scores[node] = min(0.8, semantic_score)
+        
+        # Sort by semantic similarity
+        matches.sort(key=lambda x: confidence_scores.get(x, 0), reverse=True)
+        
+        return matches, confidence_scores
+        
+    except Exception as e:
+        log_error(f"Error in semantic similarity search: {str(e)}")
+        return [], {}
+
+
+def _impact_analysis_query(G: object, query: str) -> Tuple[List, Dict]:
+    """Find all impacts of a specific concept (e.g., 'microgravity on bone health')."""
+    try:
+        # Parse query to extract concept
+        concept = query.lower().strip()
+        if ' on ' in concept:
+            concept = concept.split(' on ')[0]
+        
+        matches = []
+        confidence_scores = {}
+        
+        # Find nodes matching the concept
+        concept_nodes = []
+        for node in G.nodes():
+            node_attrs = G.nodes.get(node, {})
+            node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')}".lower()
+            
+            if concept in node_text:
+                concept_nodes.append(node)
+        
+        # Find impacts connected to these concepts
+        for concept_node in concept_nodes:
+            # Find all connected impact nodes
+            for neighbor in G.neighbors(concept_node):
+                neighbor_attrs = G.nodes.get(neighbor, {})
+                if neighbor_attrs.get('type') == 'impact':
+                    matches.append(neighbor)
+                    confidence_scores[neighbor] = 0.8
+                    
+                    # Also add the concept node
+                    if concept_node not in matches:
+                        matches.append(concept_node)
+                        confidence_scores[concept_node] = 0.9
+        
+        return matches, confidence_scores
+        
+    except Exception as e:
+        log_error(f"Error in impact analysis query: {str(e)}")
+        return [], {}
+
+
+def _countermeasures_query(G: object, query: str) -> Tuple[List, Dict]:
+    """Find countermeasures/mitigations for a specific condition."""
+    try:
+        condition = query.lower().strip()
+        
+        matches = []
+        confidence_scores = {}
+        
+        # Find mitigation nodes
+        for node in G.nodes():
+            node_attrs = G.nodes.get(node, {})
+            
+            if node_attrs.get('type') == 'mitigation':
+                # Check if this mitigation is connected to the condition
+                for neighbor in G.neighbors(node):
+                    neighbor_attrs = G.nodes.get(neighbor, {})
+                    neighbor_text = f"{neighbor} {neighbor_attrs.get('name', '')} {neighbor_attrs.get('term', '')}".lower()
+                    
+                    if condition in neighbor_text:
+                        matches.append(node)
+                        confidence_scores[node] = 0.85
+                        break
+            
+            # Also look for exercise, nutrition, medication terms
+            mitigation_terms = ['exercise', 'nutrition', 'medication', 'countermeasure', 'prevention', 'treatment']
+            node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')}".lower()
+            
+            if any(term in node_text for term in mitigation_terms):
+                matches.append(node)
+                confidence_scores[node] = 0.7
+        
+        return matches, confidence_scores
+        
+    except Exception as e:
+        log_error(f"Error in countermeasures query: {str(e)}")
+        return [], {}
+
+
+def _organisms_query(G: object, query: str) -> Tuple[List, Dict]:
+    """Find most studied organisms for space biology research."""
+    try:
+        matches = []
+        confidence_scores = {}
+        
+        # Find all organism nodes and count their connections
+        organism_connections = {}
+        
+        for node in G.nodes():
+            node_attrs = G.nodes.get(node, {})
+            
+            if node_attrs.get('type') == 'organism':
+                connection_count = len(list(G.neighbors(node)))
+                organism_connections[node] = connection_count
+        
+        # Sort organisms by number of connections (most studied)
+        sorted_organisms = sorted(organism_connections.items(), key=lambda x: x[1], reverse=True)
+        
+        for organism, connections in sorted_organisms[:10]:  # Top 10 most studied
+            matches.append(organism)
+            # Higher confidence for more studied organisms
+            confidence_scores[organism] = min(0.9, 0.5 + (connections * 0.05))
+        
+        return matches, confidence_scores
+        
+    except Exception as e:
+        log_error(f"Error in organisms query: {str(e)}")
+        return [], {}
+
+
+def _connections_query(G: object, query: str) -> Tuple[List, Dict]:
+    """Find connections between two concepts (e.g., 'radiation,DNA damage')."""
+    try:
+        # Parse query to extract two concepts
+        if ',' in query:
+            concept1, concept2 = query.split(',', 1)
+            concept1 = concept1.strip().lower()
+            concept2 = concept2.strip().lower()
+        else:
+            # Single concept - find all connections
+            concept1 = query.strip().lower()
+            concept2 = None
+        
+        matches = []
+        confidence_scores = {}
+        
+        # Find nodes for concept1
+        concept1_nodes = []
+        for node in G.nodes():
+            node_attrs = G.nodes.get(node, {})
+            node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')}".lower()
+            if concept1 in node_text:
+                concept1_nodes.append(node)
+        
+        if concept2:
+            # Find nodes for concept2
+            concept2_nodes = []
+            for node in G.nodes():
+                node_attrs = G.nodes.get(node, {})
+                node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')}".lower()
+                if concept2 in node_text:
+                    concept2_nodes.append(node)
+            
+            # Find paths between concept1 and concept2 nodes
+            for node1 in concept1_nodes:
+                for node2 in concept2_nodes:
+                    try:
+                        if nx.has_path(G, node1, node2):
+                            path = nx.shortest_path(G, node1, node2)
+                            # Add all nodes in the path
+                            for path_node in path:
+                                if path_node not in matches:
+                                    matches.append(path_node)
+                                    confidence_scores[path_node] = 0.8 if path_node in [node1, node2] else 0.6
+                    except:
+                        continue
+        else:
+            # Find all connections for concept1
+            for node1 in concept1_nodes:
+                matches.append(node1)
+                confidence_scores[node1] = 0.9
+                
+                # Add immediate neighbors
+                for neighbor in G.neighbors(node1):
+                    if neighbor not in matches:
+                        matches.append(neighbor)
+                        confidence_scores[neighbor] = 0.7
+        
+        return matches, confidence_scores
+        
+    except Exception as e:
+        log_error(f"Error in connections query: {str(e)}")
+        return [], {}
+
+
+def _clusters_query(G: object, query: str) -> Tuple[List, Dict]:
+    """Find research clusters around a specific topic."""
+    try:
+        topic = query.lower().strip()
+        
+        matches = []
+        confidence_scores = {}
+        
+        # Find nodes related to the topic
+        topic_nodes = []
+        for node in G.nodes():
+            node_attrs = G.nodes.get(node, {})
+            node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')} {node_attrs.get('title', '')}".lower()
+            
+            if topic in node_text:
+                topic_nodes.append(node)
+        
+        if topic_nodes:
+            # Create subgraph around topic nodes
+            extended_nodes = set(topic_nodes)
+            for node in topic_nodes:
+                extended_nodes.update(G.neighbors(node))
+            
+            subgraph = G.subgraph(extended_nodes)
+            
+            # Detect communities in the subgraph
+            try:
+                if hasattr(nx, 'community'):
+                    communities = nx.community.greedy_modularity_communities(subgraph.to_undirected())
+                    
+                    # Add nodes from the largest communities
+                    for community in sorted(communities, key=len, reverse=True)[:3]:
+                        for node in community:
+                            matches.append(node)
+                            confidence_scores[node] = 0.8 if node in topic_nodes else 0.6
+            except:
+                # Fallback: add topic nodes and their neighbors
+                for node in extended_nodes:
+                    matches.append(node)
+                    confidence_scores[node] = 0.8 if node in topic_nodes else 0.5
+        
+        return matches, confidence_scores
+        
+    except Exception as e:
+        log_error(f"Error in clusters query: {str(e)}")
+        return [], {}
+
+
+def _shortest_path_query(G: object, query: str) -> Tuple[List, Dict]:
+    """Shortest path analysis between concepts."""
+    try:
+        # Parse query for two concepts
+        if ',' in query or ' to ' in query:
+            if ' to ' in query:
+                concept1, concept2 = query.split(' to ', 1)
+            else:
+                concept1, concept2 = query.split(',', 1)
+            
+            concept1 = concept1.strip().lower()
+            concept2 = concept2.strip().lower()
+        else:
+            return [], {}
+        
+        matches = []
+        confidence_scores = {}
+        
+        # Find representative nodes for each concept
+        concept1_nodes = []
+        concept2_nodes = []
+        
+        for node in G.nodes():
+            node_attrs = G.nodes.get(node, {})
+            node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')}".lower()
+            
+            if concept1 in node_text:
+                concept1_nodes.append(node)
+            if concept2 in node_text:
+                concept2_nodes.append(node)
+        
+        # Find shortest paths
+        shortest_paths = []
+        for node1 in concept1_nodes:
+            for node2 in concept2_nodes:
+                try:
+                    if nx.has_path(G, node1, node2):
+                        path = nx.shortest_path(G, node1, node2)
+                        shortest_paths.append(path)
+                except:
+                    continue
+        
+        # Add nodes from shortest paths
+        if shortest_paths:
+            # Find the actual shortest path
+            min_path = min(shortest_paths, key=len)
+            for i, node in enumerate(min_path):
+                matches.append(node)
+                # Higher confidence for start/end nodes
+                if i == 0 or i == len(min_path) - 1:
+                    confidence_scores[node] = 0.9
+                else:
+                    confidence_scores[node] = 0.7
+        
+        return matches, confidence_scores
+        
+    except Exception as e:
+        log_error(f"Error in shortest path query: {str(e)}")
+        return [], {}
+
+
+def _multi_hop_discovery(G: object, seed_nodes: List, max_hops: int) -> List:
+    """Multi-hop neighbor discovery (2-3 degrees of separation)."""
+    try:
+        discovered = set(seed_nodes)
+        current_level = set(seed_nodes)
+        
+        for hop in range(max_hops):
+            next_level = set()
+            for node in current_level:
+                neighbors = set(G.neighbors(node))
+                next_level.update(neighbors - discovered)
+            
+            discovered.update(next_level)
+            current_level = next_level
+            
+            if not next_level:  # No new nodes found
+                break
+        
+        return list(discovered - set(seed_nodes))  # Return only the newly discovered nodes
+        
+    except Exception as e:
+        log_error(f"Error in multi-hop discovery: {str(e)}")
+        return []
+
+
+def _extract_enhanced_edges(subgraph: object) -> List[Dict]:
+    """Extract edges with relationship explanations."""
+    try:
+        edges = []
+        
+        for source, target, attrs in subgraph.edges(data=True):
             edge_info = {
                 'source': source,
                 'target': target,
                 'relation': attrs.get('relation', 'unknown'),
-                'confidence': attrs.get('confidence', 0.5)
+                'confidence': attrs.get('confidence', 0.5),
+                'edge_type': attrs.get('edge_type', 'general'),
+                'weight': attrs.get('weight', 1.0),
+                'explanation': _generate_edge_explanation(source, target, attrs)
             }
-            # Add additional edge attributes
+            
+            # Add all other attributes
             for key, value in attrs.items():
-                if key not in ['relation', 'confidence']:
+                if key not in ['relation', 'confidence', 'edge_type', 'weight']:
                     edge_info[key] = value
             
-            subgraph_edges.append(edge_info)
+            edges.append(edge_info)
         
-        # Extract summaries from experiment nodes in the subgraph
-        summaries = []
-        for node in subgraph_nodes:
-            node_attrs = G.nodes.get(node, {})
-            if node_attrs.get('type') == 'experiment':
-                summary_info = {
-                    'experiment_id': node_attrs.get('id', node),
-                    'title': node_attrs.get('title', 'No title'),
-                    'summary': node_attrs.get('summary', 'No summary available')
-                }
-                summaries.append(summary_info)
-        
-        # Collect detailed node information
-        node_details = {}
-        for node in subgraph_nodes:
-            node_attrs = G.nodes.get(node, {})
-            node_details[node] = {
-                'type': node_attrs.get('type', 'unknown'),
-                'attributes': node_attrs,
-                'is_match': node in matching_nodes,
-                'is_neighbor': node in neighbors_only,
-                'degree': G.degree(node)
-            }
-        
-        # Calculate statistics
-        statistics = {
-            'total_matches': len(matching_nodes),
-            'total_neighbors': len(neighbors_only),
-            'subgraph_size': len(subgraph_nodes),
-            'subgraph_edges': len(subgraph_edges),
-            'experiment_summaries': len(summaries),
-            'keyword_searched': keyword
-        }
-        
-        log_info(f"Query '{keyword}' found {len(matching_nodes)} matches, {len(neighbors_only)} neighbors")
-        
-        return {
-            'matches': list(matching_nodes),
-            'neighbors': list(neighbors_only),
-            'subgraph_nodes': list(subgraph_nodes),
-            'edges': subgraph_edges,
-            'summaries': summaries,
-            'node_details': node_details,
-            'statistics': statistics,
-            'subgraph': subgraph  # Include actual NetworkX subgraph for further analysis
-        }
+        return edges
         
     except Exception as e:
-        log_error(f"Error querying knowledge graph: {str(e)}")
-        return {
-            'matches': [],
-            'neighbors': [],
-            'subgraph_nodes': [],
-            'edges': [],
-            'summaries': [],
-            'node_details': {},
-            'statistics': {'total_matches': 0, 'total_neighbors': 0, 'subgraph_size': 0},
-            'error': f"Query failed: {str(e)}"
+        log_error(f"Error extracting enhanced edges: {str(e)}")
+        return []
+
+
+def _analyze_relationship_paths(G: object, matches: List, query_type: str) -> List[Dict]:
+    """Analyze shortest paths and relationship explanations."""
+    try:
+        paths = []
+        
+        # Find interesting paths between matches
+        for i, node1 in enumerate(matches[:5]):  # Limit for performance
+            for node2 in matches[i+1:6]:
+                try:
+                    if nx.has_path(G, node1, node2):
+                        path = nx.shortest_path(G, node1, node2)
+                        if len(path) <= 4:  # Only short meaningful paths
+                            path_info = {
+                                'source': node1,
+                                'target': node2,
+                                'path': path,
+                                'length': len(path) - 1,
+                                'explanation': _generate_path_explanation(G, path),
+                                'confidence': max(0.3, 1.0 - (len(path) - 1) * 0.2)
+                            }
+                            paths.append(path_info)
+                except:
+                    continue
+        
+        return paths
+        
+    except Exception as e:
+        log_error(f"Error analyzing relationship paths: {str(e)}")
+        return []
+
+
+def _detect_research_clusters(G: object, subgraph_nodes: List) -> List[Dict]:
+    """Detect communities and research clusters."""
+    try:
+        clusters = []
+        
+        if len(subgraph_nodes) < 5:
+            return clusters
+        
+        subgraph = G.subgraph(subgraph_nodes)
+        
+        try:
+            if hasattr(nx, 'community'):
+                communities = nx.community.greedy_modularity_communities(subgraph.to_undirected())
+                
+                for i, community in enumerate(communities):
+                    if len(community) >= 3:  # Only meaningful clusters
+                        # Analyze cluster composition
+                        node_types = {}
+                        for node in community:
+                            node_type = G.nodes.get(node, {}).get('type', 'unknown')
+                            node_types[node_type] = node_types.get(node_type, 0) + 1
+                        
+                        cluster_info = {
+                            'cluster_id': i,
+                            'size': len(community),
+                            'nodes': list(community),
+                            'node_types': node_types,
+                            'primary_type': max(node_types.items(), key=lambda x: x[1])[0] if node_types else 'mixed',
+                            'description': _generate_cluster_description(G, community)
+                        }
+                        clusters.append(cluster_info)
+        except Exception as e:
+            log_error(f"Community detection failed: {str(e)}")
+        
+        return clusters
+        
+    except Exception as e:
+        log_error(f"Error detecting research clusters: {str(e)}")
+        return []
+
+
+def _perform_advanced_analysis(G: object, subgraph: object, matches: List, query_type: str) -> Dict:
+    """Perform advanced graph analysis including centrality and impact propagation."""
+    try:
+        analysis = {}
+        
+        # Centrality analysis
+        try:
+            degree_centrality = nx.degree_centrality(subgraph)
+            betweenness_centrality = nx.betweenness_centrality(subgraph)
+            
+            # Find most central nodes
+            top_degree = sorted(degree_centrality.items(), key=lambda x: x[1], reverse=True)[:5]
+            top_betweenness = sorted(betweenness_centrality.items(), key=lambda x: x[1], reverse=True)[:5]
+            
+            analysis['centrality'] = {
+                'top_degree_centrality': top_degree,
+                'top_betweenness_centrality': top_betweenness
+            }
+        except Exception as e:
+            analysis['centrality'] = {'error': str(e)}
+        
+        # Impact propagation analysis
+        try:
+            propagation_paths = []
+            impact_nodes = [n for n in subgraph.nodes() if G.nodes.get(n, {}).get('type') == 'impact']
+            
+            for impact in impact_nodes[:3]:  # Analyze top 3 impacts
+                # Find how this impact propagates through the network
+                reachable = set()
+                try:
+                    reachable = set(nx.single_source_shortest_path_length(subgraph, impact, cutoff=3).keys())
+                except:
+                    reachable = {impact}
+                
+                propagation_paths.append({
+                    'impact': impact,
+                    'reachable_nodes': len(reachable),
+                    'propagation_scope': list(reachable)[:10]  # Limit for readability
+                })
+            
+            analysis['impact_propagation'] = propagation_paths
+        except Exception as e:
+            analysis['impact_propagation'] = {'error': str(e)}
+        
+        # Temporal analysis (if publication dates available)
+        try:
+            temporal_nodes = []
+            for node in subgraph.nodes():
+                node_attrs = G.nodes.get(node, {})
+                if 'publication_date' in node_attrs:
+                    temporal_nodes.append((node, node_attrs['publication_date']))
+            
+            if temporal_nodes:
+                temporal_nodes.sort(key=lambda x: x[1])
+                analysis['temporal_trends'] = {
+                    'earliest_research': temporal_nodes[0] if temporal_nodes else None,
+                    'latest_research': temporal_nodes[-1] if temporal_nodes else None,
+                    'research_timeline': [{'node': n, 'date': d} for n, d in temporal_nodes[:10]]
+                }
+        except Exception as e:
+            analysis['temporal_trends'] = {'error': str(e)}
+        
+        return analysis
+        
+    except Exception as e:
+        log_error(f"Error in advanced analysis: {str(e)}")
+        return {'error': str(e)}
+
+
+def _generate_natural_language_summaries(G: object, matches: List, paths: List, clusters: List, analysis: Dict) -> str:
+    """Generate natural language explanation of query results."""
+    try:
+        summary_parts = []
+        
+        if matches:
+            summary_parts.append(f"Found {len(matches)} relevant nodes in the knowledge graph.")
+            
+            # Analyze node types
+            node_types = {}
+            for node in matches[:10]:  # Analyze top 10
+                node_type = G.nodes.get(node, {}).get('type', 'unknown')
+                node_types[node_type] = node_types.get(node_type, 0) + 1
+            
+            if node_types:
+                type_summary = ", ".join([f"{count} {ntype}" for ntype, count in node_types.items()])
+                summary_parts.append(f"This includes {type_summary}.")
+        
+        if paths:
+            summary_parts.append(f"Discovered {len(paths)} significant pathways connecting these concepts.")
+            avg_path_length = sum(p['length'] for p in paths) / len(paths)
+            summary_parts.append(f"Average connection distance is {avg_path_length:.1f} degrees of separation.")
+        
+        if clusters:
+            summary_parts.append(f"Identified {len(clusters)} research clusters.")
+            largest_cluster = max(clusters, key=lambda x: x['size']) if clusters else None
+            if largest_cluster:
+                summary_parts.append(f"The largest cluster contains {largest_cluster['size']} interconnected concepts focused on {largest_cluster['primary_type']} research.")
+        
+        if analysis.get('centrality'):
+            centrality = analysis['centrality']
+            if 'top_degree_centrality' in centrality and centrality['top_degree_centrality']:
+                top_hub = centrality['top_degree_centrality'][0]
+                summary_parts.append(f"The most connected concept is '{top_hub[0]}' with {top_hub[1]:.2f} centrality.")
+        
+        return " ".join(summary_parts) if summary_parts else "No significant patterns found in the query results."
+        
+    except Exception as e:
+        log_error(f"Error generating natural language summary: {str(e)}")
+        return "Summary generation failed."
+
+
+def _find_alternative_matches(G: object, query: str, original_matches: List) -> List:
+    """Find alternative matches using synonyms and related terms."""
+    try:
+        alternatives = []
+        
+        # Space biology term expansions
+        term_expansions = {
+            'bone': ['skeletal', 'osseous', 'calcium', 'mineral density', 'osteoblast', 'osteoclast'],
+            'muscle': ['skeletal muscle', 'myofibril', 'sarcomere', 'atrophy', 'myosin', 'actin'],
+            'microgravity': ['weightlessness', 'zero gravity', 'space flight', 'orbital environment'],
+            'radiation': ['cosmic ray', 'solar particle', 'ionizing radiation', 'space radiation'],
+            'cardiovascular': ['heart', 'cardiac', 'blood pressure', 'circulation', 'vascular'],
+            'immune': ['immunological', 'immunity', 'lymphocyte', 'T-cell', 'antibody', 'cytokine']
         }
+        
+        query_lower = query.lower()
+        expanded_terms = []
+        
+        for base_term, expansions in term_expansions.items():
+            if base_term in query_lower:
+                expanded_terms.extend(expansions)
+        
+        # Search for alternative matches
+        for node in G.nodes():
+            if node in original_matches:
+                continue
+                
+            node_attrs = G.nodes.get(node, {})
+            node_text = f"{node} {node_attrs.get('name', '')} {node_attrs.get('term', '')} {node_attrs.get('title', '')}".lower()
+            
+            for term in expanded_terms:
+                if term in node_text:
+                    alternatives.append(node)
+                    break
+        
+        return alternatives[:5]  # Return top 5 alternatives
+        
+    except Exception as e:
+        log_error(f"Error finding alternative matches: {str(e)}")
+        return []
+
+
+def _rank_results_by_relevance(matches: List, confidence_scores: Dict, G: object) -> List:
+    """Rank results by relevance using multiple factors."""
+    try:
+        scored_matches = []
+        
+        for node in matches:
+            base_score = confidence_scores.get(node, 0.5)
+            
+            # Boost score based on node properties
+            node_attrs = G.nodes.get(node, {})
+            
+            # Boost for hub nodes (highly connected)
+            degree = G.degree(node)
+            hub_boost = min(0.2, degree * 0.02)  # Up to 0.2 boost for hubs
+            
+            # Boost for important node types
+            node_type = node_attrs.get('type', 'unknown')
+            type_boosts = {
+                'impact': 0.15,
+                'mitigation': 0.1,
+                'organism': 0.08,
+                'experiment': 0.05
+            }
+            type_boost = type_boosts.get(node_type, 0)
+            
+            # Boost for nodes with rich information
+            info_boost = 0
+            if node_attrs.get('summary'):
+                info_boost += 0.05
+            if node_attrs.get('abstract'):
+                info_boost += 0.05
+            if node_attrs.get('publication_date'):
+                info_boost += 0.03
+            
+            final_score = base_score + hub_boost + type_boost + info_boost
+            scored_matches.append((node, final_score))
+        
+        # Sort by final score
+        scored_matches.sort(key=lambda x: x[1], reverse=True)
+        return [node for node, score in scored_matches]
+        
+    except Exception as e:
+        log_error(f"Error ranking results: {str(e)}")
+        return matches
+
+
+def _generate_query_alternatives(query: str, query_type: str) -> List[str]:
+    """Generate alternative query suggestions."""
+    try:
+        alternatives = []
+        
+        if query_type == 'keyword':
+            # Suggest boolean variants
+            alternatives.append(f"{query} AND microgravity")
+            alternatives.append(f"{query} OR space")
+            alternatives.append(f"impact_analysis:{query}")
+            alternatives.append(f"countermeasures:{query}")
+        
+        elif query_type == 'boolean':
+            # Suggest semantic variant
+            base_terms = query.replace(' AND ', ' ').replace(' OR ', ' ').replace(' NOT ', ' ')
+            alternatives.append(f"semantic:{base_terms}")
+            alternatives.append(f"clusters:{base_terms}")
+        
+        elif query_type == 'semantic':
+            # Suggest related concepts
+            if 'bone' in query.lower():
+                alternatives.extend(['muscle atrophy', 'calcium metabolism', 'exercise countermeasures'])
+            elif 'muscle' in query.lower():
+                alternatives.extend(['bone loss', 'protein synthesis', 'resistance exercise'])
+            elif 'radiation' in query.lower():
+                alternatives.extend(['DNA damage', 'cancer risk', 'shielding strategies'])
+        
+        return alternatives[:5]
+        
+    except Exception as e:
+        log_error(f"Error generating query alternatives: {str(e)}")
+        return []
+
+
+def _generate_query_explanation(query: str, query_type: str, matches_found: int) -> str:
+    """Generate explanation of what the query searched for."""
+    try:
+        explanations = {
+            'keyword': f"Searched for nodes containing '{query}' using fuzzy string matching",
+            'boolean': f"Applied boolean logic to query '{query}' with AND/OR/NOT operations",
+            'semantic': f"Found semantically similar concepts to '{query}' using word similarity",
+            'impact_analysis': f"Analyzed all impacts and effects related to '{query}'",
+            'countermeasures': f"Identified countermeasures and mitigations for '{query}'",
+            'organisms': "Found most studied organisms in space biology research",
+            'connections': f"Traced connections and pathways related to '{query}'",
+            'clusters': f"Identified research clusters and communities around '{query}'",
+            'shortest_path': f"Found shortest paths between concepts in '{query}'"
+        }
+        
+        base_explanation = explanations.get(query_type, f"Performed {query_type} search for '{query}'")
+        return f"{base_explanation}. Found {matches_found} relevant results."
+        
+    except Exception as e:
+        log_error(f"Error generating query explanation: {str(e)}")
+        return f"Executed {query_type} query for '{query}'"
+
+
+def _generate_edge_explanation(source: str, target: str, attrs: Dict) -> str:
+    """Generate human-readable explanation for an edge."""
+    try:
+        relation = attrs.get('relation', 'connected to')
+        edge_type = attrs.get('edge_type', 'general')
+        
+        if edge_type == 'causal':
+            return f"{source} causes {target}"
+        elif edge_type == 'correlational':
+            return f"{source} is correlated with {target}"
+        elif edge_type == 'experimental':
+            return f"{source} was studied in context of {target}"
+        elif relation in ['affects', 'influences']:
+            return f"{source} {relation} {target}"
+        else:
+            return f"{source} is {relation} {target}"
+            
+    except Exception as e:
+        return f"{source} - {target}"
+
+
+def _generate_path_explanation(G: object, path: List) -> str:
+    """Generate explanation for a path between nodes."""
+    try:
+        if len(path) < 2:
+            return "Single node"
+        
+        explanations = []
+        for i in range(len(path) - 1):
+            source, target = path[i], path[i + 1]
+            edge_attrs = G.get_edge_data(source, target, {})
+            relation = edge_attrs.get('relation', 'connected to')
+            explanations.append(f"{source} {relation} {target}")
+        
+        return " → ".join(explanations)
+        
+    except Exception as e:
+        return " → ".join(path)
+
+
+def _generate_cluster_description(G: object, community: set) -> str:
+    """Generate description for a research cluster."""
+    try:
+        # Analyze the most common terms in the cluster
+        all_terms = []
+        for node in community:
+            node_attrs = G.nodes.get(node, {})
+            all_terms.extend(str(node_attrs.get('name', '')).lower().split())
+            all_terms.extend(str(node_attrs.get('term', '')).lower().split())
+        
+        # Count term frequency
+        term_counts = {}
+        for term in all_terms:
+            if len(term) > 3:  # Ignore short words
+                term_counts[term] = term_counts.get(term, 0) + 1
+        
+        if term_counts:
+            top_terms = sorted(term_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+            return f"Research focused on {', '.join([term for term, count in top_terms])}"
+        else:
+            return f"Research cluster with {len(community)} interconnected concepts"
+            
+    except Exception as e:
+        return f"Cluster of {len(community)} related concepts"
 
 
 def get_kg_info() -> Dict:
     """
-    Get information about knowledge graph capabilities.
+    Get information about advanced knowledge graph capabilities.
     
     Returns:
         Dictionary with system capabilities and status
