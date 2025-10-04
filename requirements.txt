@@ -25,6 +25,8 @@ scikit-learn>=1.3.0
 # Testing
 pytest>=7.4.0
 
+beautifulsoup4
+
 # Optional: Lighter alternatives to heavy packages
 # transformers  # Commented out - can add back if needed
 # torch  # Commented out - can add back if needed

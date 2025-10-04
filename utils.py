@@ -14,7 +14,6 @@ from typing import Any, Dict, List, Optional, Union
 
 # API Endpoints and Configuration Constants
 GENELAB_SEARCH_URL = 'https://genelab-data.ndc.nasa.gov/genelab/data/search?term={query}'
-OSDR_STUDIES_URL = 'https://osdr.nasa.gov/bio/repo/data/studies'
 NTRS_SEARCH_URL = 'https://ntrs.nasa.gov/search?q={query}'
 
 # Default cache directory
@@ -121,7 +120,6 @@ def get_api_urls() -> Dict[str, str]:
     """
     return {
         'genelab': GENELAB_SEARCH_URL,
-        'osdr': OSDR_STUDIES_URL,
         'ntrs': NTRS_SEARCH_URL
     }
 
@@ -131,7 +129,7 @@ def format_search_url(api_name: str, query: str) -> Optional[str]:
     Format search URL for the specified API with the given query.
     
     Args:
-        api_name: Name of the API ('genelab', 'osdr', 'ntrs')
+        api_name: Name of the API ('genelab', 'ntrs')
         query: Search query term
         
     Returns:

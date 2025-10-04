@@ -82,7 +82,8 @@ def run_pipeline(query: str = 'space biology', limit: int = 50) -> Tuple[Optiona
     
     try:
         data = data_fetch.fetch_publications(query, limit)
-        if not data:
+        # Fix: Handle different data types properly (list, DataFrame, etc.)
+        if data is None or (hasattr(data, '__len__') and len(data) == 0) or (hasattr(data, 'empty') and data.empty):
             log_error("No data retrieved from fetch step")
             return None, None
         
