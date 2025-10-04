@@ -23,14 +23,13 @@ streamlit run app.py
 
 ```mermaid
 graph TD
-    A[NASA APIs<br/>GeneLab/OSDR] --> B[Data Layer]
+    A[NASA APIs<br/>GeneLab] --> B[Data Layer]
     C[NTRS Scraper<br/>Fallback] --> B
     B --> D[Preprocessing<br/>Text Cleaning]
     D --> E[AI Summarization<br/>BART Model]
     E --> F[Knowledge Graph<br/>spaCy + NetworkX]
     F --> G[Streamlit Dashboard]
     G --> H[Interactive Visualization<br/>Plotly]
-    
     B -.-> I[JSON Cache]
     D -.-> I
     E -.-> I
@@ -71,7 +70,7 @@ graph TD
 | **AI/NLP** | Transformers 4.44.2 + PyTorch | BART summarization model |
 | **Knowledge Graph** | spaCy 3.7.6 + NetworkX 3.3 | Entity extraction & graph building |
 | **Visualization** | Plotly 5.24.0 | Interactive network graphs |
-| **Data Sources** | NASA GeneLab, OSDR, NTRS | Space biology research data |
+| **Data Sources** | NASA GeneLab , NTRS | Space biology research data |
 
 ## 📊 Challenge Alignment
 

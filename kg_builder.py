@@ -754,6 +754,25 @@ def _enhanced_fallback_extraction(text: str) -> Dict:
     return result
 
 
+def _get_organism_taxonomy(organism_name: str) -> str:
+    """Get basic taxonomy information for known organisms."""
+    taxonomy_map = {
+        'mus musculus': 'Mammalia > Rodentia > Muridae',
+        'mice': 'Mammalia > Rodentia > Muridae',
+        'mouse': 'Mammalia > Rodentia > Muridae',
+        'rattus norvegicus': 'Mammalia > Rodentia > Muridae',
+        'rat': 'Mammalia > Rodentia > Muridae',
+        'rats': 'Mammalia > Rodentia > Muridae',
+        'arabidopsis thaliana': 'Plantae > Brassicales > Brassicaceae',
+        'arabidopsis': 'Plantae > Brassicales > Brassicaceae',
+        'plants': 'Plantae',
+        'plant': 'Plantae',
+        'human': 'Mammalia > Primates > Hominidae',
+        'humans': 'Mammalia > Primates > Hominidae'
+    }
+    return taxonomy_map.get(organism_name.lower(), 'Unknown taxonomy')
+
+
 def _extract_custom_relations(doc: object) -> List[Dict]:
     """
     Extract relationships using dependency parsing.
@@ -960,68 +979,248 @@ def build_knowledge_graph(entities_list: List[Dict], experiment_ids: Optional[Li
 
 def analyze_graph_structure(graph: object) -> Dict:
     """
-    Analyze knowledge graph structure and extract insights.
+    Comprehensive analysis of knowledge graph structure with advanced metrics.
+    
+    Provides detailed analytics including:
+    - Basic graph metrics (nodes, edges, density)
+    - Centrality analysis (degree, betweenness, closeness)
+    - Hub identification and ranking
+    - Community/cluster detection
+    - Connectivity analysis
+    - Research domain analysis
+    - Biological pathway insights
     
     Args:
-        graph: NetworkX graph object
+        graph: NetworkX graph object with rich node/edge attributes
         
     Returns:
-        Dictionary with graph analysis results
+        Dictionary with comprehensive graph analysis results including:
+        - Basic metrics, centrality measures, hub analysis
+        - Community structure, pathway analysis, research insights
     """
     if not graph or not NETWORKX_AVAILABLE:
         return {'error': 'Graph or NetworkX not available'}
     
     try:
+        # Basic graph metrics
+        num_nodes = graph.number_of_nodes()
+        num_edges = graph.number_of_edges()
+        density = nx.density(graph)
+        avg_degree = (2 * num_edges) / num_nodes if num_nodes > 0 else 0
+        
         analysis = {
-            'nodes': graph.number_of_nodes(),
-            'edges': graph.number_of_edges(),
-            'node_types': {},
-            'top_connected_nodes': [],
-            'isolated_nodes': list(nx.isolates(graph)),
-            'density': nx.density(graph)
+            'basic_metrics': {
+                'nodes': num_nodes,
+                'edges': num_edges,
+                'density': density,
+                'average_degree': avg_degree,
+                'is_connected': nx.is_connected(graph.to_undirected()) if num_nodes > 0 else False
+            },
+            'node_analysis': {},
+            'centrality_analysis': {},
+            'hub_analysis': {},
+            'community_analysis': {},
+            'research_insights': {},
+            'pathway_analysis': {}
         }
         
-        # Count node types
+        # Node type distribution and hierarchy analysis
+        node_types = {}
+        node_levels = {}
+        hub_nodes = []
+        
         for node, attrs in graph.nodes(data=True):
             node_type = attrs.get('type', 'unknown')
-            analysis['node_types'][node_type] = analysis['node_types'].get(node_type, 0) + 1
+            node_level = attrs.get('node_level', 0)
+            hub_score = attrs.get('hub_score', 0)
+            
+            node_types[node_type] = node_types.get(node_type, 0) + 1
+            
+            if node_level in node_levels:
+                node_levels[node_level] += 1
+            else:
+                node_levels[node_level] = 1
+            
+            if attrs.get('is_hub', False) or hub_score > 2:
+                hub_nodes.append({
+                    'node': node,
+                    'type': node_type,
+                    'hub_score': hub_score,
+                    'degree': graph.degree(node),
+                    'frequency': attrs.get('frequency', 1)
+                })
         
-        # Find most connected nodes
-        degrees = dict(graph.degree())
-        top_nodes = sorted(degrees.items(), key=lambda x: x[1], reverse=True)[:5]
-        analysis['top_connected_nodes'] = top_nodes
+        analysis['node_analysis'] = {
+            'node_types': node_types,
+            'hierarchy_levels': node_levels,
+            'isolated_nodes': list(nx.isolates(graph))
+        }
+        
+        # Centrality analysis
+        try:
+            degree_centrality = nx.degree_centrality(graph)
+            betweenness_centrality = nx.betweenness_centrality(graph)
+            
+            # Get top nodes by centrality
+            top_degree = sorted(degree_centrality.items(), key=lambda x: x[1], reverse=True)[:5]
+            top_betweenness = sorted(betweenness_centrality.items(), key=lambda x: x[1], reverse=True)[:5]
+            
+            analysis['centrality_analysis'] = {
+                'top_degree_centrality': top_degree,
+                'top_betweenness_centrality': top_betweenness,
+                'avg_degree_centrality': sum(degree_centrality.values()) / len(degree_centrality) if degree_centrality else 0,
+                'avg_betweenness_centrality': sum(betweenness_centrality.values()) / len(betweenness_centrality) if betweenness_centrality else 0
+            }
+        except Exception as e:
+            log_error(f"Error calculating centrality: {str(e)}")
+            analysis['centrality_analysis'] = {'error': str(e)}
+        
+        # Hub analysis
+        hub_nodes.sort(key=lambda x: x['hub_score'], reverse=True)
+        analysis['hub_analysis'] = {
+            'total_hubs': len(hub_nodes),
+            'top_hubs': hub_nodes[:10],
+            'hub_types': {}
+        }
+        
+        for hub in hub_nodes:
+            hub_type = hub['type']
+            if hub_type in analysis['hub_analysis']['hub_types']:
+                analysis['hub_analysis']['hub_types'][hub_type] += 1
+            else:
+                analysis['hub_analysis']['hub_types'][hub_type] = 1
+        
+        # Community/cluster analysis
+        try:
+            if hasattr(nx, 'community') and num_nodes > 2:
+                G_undirected = graph.to_undirected()
+                communities = nx.community.greedy_modularity_communities(G_undirected)
+                
+                # Analyze community composition
+                community_info = []
+                for i, community in enumerate(communities):
+                    community_types = {}
+                    for node in community:
+                        if graph.has_node(node):
+                            node_type = graph.nodes[node].get('type', 'unknown')
+                            community_types[node_type] = community_types.get(node_type, 0) + 1
+                    
+                    community_info.append({
+                        'community_id': i,
+                        'size': len(community),
+                        'node_types': community_types,
+                        'nodes': list(community)[:5]  # Sample nodes
+                    })
+                
+                analysis['community_analysis'] = {
+                    'num_communities': len(communities),
+                    'communities': community_info,
+                    'modularity': nx.community.modularity(G_undirected, communities) if communities else 0
+                }
+        except Exception as e:
+            log_error(f"Error in community analysis: {str(e)}")
+            analysis['community_analysis'] = {'error': str(e)}
+        
+        # Research insights analysis
+        experiments = [n for n in graph.nodes() if n.startswith('Experiment:')]
+        impacts = [n for n in graph.nodes() if n.startswith('Impact:')]
+        organisms = [n for n in graph.nodes() if n.startswith('Organism:')]
+        conditions = [n for n in graph.nodes() if n.startswith('Condition:')]
+        
+        # Find most studied combinations
+        organism_impact_pairs = []
+        for org in organisms[:5]:  # Limit for performance
+            for impact in impacts[:5]:
+                # Check if both are studied in same experiments
+                org_experiments = set(graph.predecessors(org))
+                impact_experiments = set(graph.predecessors(impact))
+                shared_exps = org_experiments & impact_experiments
+                if shared_exps:
+                    organism_impact_pairs.append({
+                        'organism': org.split(':', 1)[1],
+                        'impact': impact.split(':', 1)[1],
+                        'shared_experiments': len(shared_exps),
+                        'experiments': list(shared_exps)[:3]
+                    })
+        
+        organism_impact_pairs.sort(key=lambda x: x['shared_experiments'], reverse=True)
+        
+        analysis['research_insights'] = {
+            'total_experiments': len(experiments),
+            'total_impacts': len(impacts),
+            'total_organisms': len(organisms),
+            'total_conditions': len(conditions),
+            'most_studied_combinations': organism_impact_pairs[:5],
+            'research_coverage': {
+                'organism_diversity': len(organisms),
+                'impact_diversity': len(impacts),
+                'condition_diversity': len(conditions)
+            }
+        }
+        
+        # Pathway analysis
+        causal_edges = [(u, v) for u, v, d in graph.edges(data=True) if d.get('edge_type') == 'causal']
+        biological_edges = [(u, v) for u, v, d in graph.edges(data=True) if d.get('edge_type') == 'biological_pathway']
+        intervention_edges = [(u, v) for u, v, d in graph.edges(data=True) if d.get('edge_type') == 'intervention']
+        
+        analysis['pathway_analysis'] = {
+            'causal_relationships': len(causal_edges),
+            'biological_pathways': len(biological_edges),
+            'interventions': len(intervention_edges),
+            'pathway_complexity': len(causal_edges) + len(biological_edges),
+            'sample_causal_paths': causal_edges[:5],
+            'sample_interventions': intervention_edges[:3]
+        }
+        
+        # Performance assessment
+        analysis['performance_assessment'] = {
+            'connectivity_score': min(avg_degree / 2.0, 1.0),  # Target: avg degree ≥ 2
+            'size_score': min((num_nodes * num_edges) / (50 * 40), 1.0),  # Target: 50+ nodes, 40+ edges
+            'richness_score': len(node_types) / 8.0,  # Diversity of node types
+            'hub_score': len(hub_nodes) / max(num_nodes * 0.1, 1),  # Hub density
+            'overall_score': 0.0
+        }
+        
+        # Calculate overall score
+        perf = analysis['performance_assessment']
+        perf['overall_score'] = (perf['connectivity_score'] * 0.3 + 
+                               perf['size_score'] * 0.3 + 
+                               perf['richness_score'] * 0.2 + 
+                               perf['hub_score'] * 0.2)
         
         return analysis
         
     except Exception as e:
-        log_error(f"Error analyzing graph: {str(e)}")
+        log_error(f"Error in comprehensive graph analysis: {str(e)}")
         return {'error': str(e)}
 
 
 def build_kg(df: pd.DataFrame) -> Optional[object]:
     """
-    Build knowledge graph from DataFrame with experiments, summaries, and entity relationships.
+    Build rich, hierarchical knowledge graph from DataFrame with comprehensive entity relationships.
     
-    Creates a comprehensive knowledge graph where:
-    - Each row becomes an Experiment node with title and summary attributes
-    - Entities extracted from summaries become Impact/Entity nodes
-    - Simple causal relationships detected using 'causes' keyword
-    - Graph serialized to 'data/graph.pkl' for persistence
+    Creates an advanced knowledge graph with:
+    - Typed node hierarchy: Study → Experiment → Impact/Organism/Condition
+    - Weighted edges based on relationship confidence and frequency
+    - Hub nodes for major concepts (microgravity, ISS, bone loss)
+    - Temporal connections between related studies
+    - Cross-experiment connectivity through shared entities
+    - Advanced analytics (centrality, clustering, communities)
     
     Args:
-        df: DataFrame with columns 'id', 'title', 'summary' (and optionally 'abstract')
+        df: DataFrame with columns 'id', 'title', 'summary' (and optionally 'abstract', 'publication_date')
         
     Returns:
-        NetworkX Graph object or None if NetworkX unavailable
+        NetworkX Graph object with rich connectivity and analytics, or None if unavailable
         
     Example:
         >>> df = pd.DataFrame({
         ...     'id': ['GLDS-001', 'GLDS-002'], 
         ...     'title': ['Bone Study', 'Muscle Research'],
-        ...     'summary': ['Microgravity causes bone loss', 'Exercise prevents muscle atrophy']
+        ...     'summary': ['Microgravity causes bone loss in mice', 'Exercise prevents muscle atrophy']
         ... })
         >>> graph = build_kg(df)
-        >>> print(f"Graph saved with {graph.number_of_nodes()} nodes")
+        >>> print(f"Rich graph: {graph.number_of_nodes()} nodes, {graph.number_of_edges()} edges")
     """
     if not NETWORKX_AVAILABLE:
         log_error("NetworkX not available. Install with: pip install networkx")
@@ -1032,7 +1231,7 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
         return None
     
     try:
-        # Create directed graph for causal relationships
+        # Create directed graph for rich relationships
         G = nx.DiGraph()
         
         # Ensure required columns exist
@@ -1048,127 +1247,475 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
             log_error("DataFrame must contain 'summary' or 'abstract' column")
             return None
         
-        log_info(f"Building knowledge graph from {len(df)} experiments using '{text_col}' column")
+        log_info(f"Building rich knowledge graph from {len(df)} experiments using '{text_col}' column")
         
-        # Process each experiment (DataFrame row)
+        # Initialize tracking for entity frequencies and hub identification
+        entity_frequencies = {}
+        organism_experiments = {}
+        impact_experiments = {}
+        condition_experiments = {}
+        all_entities = {}
+        
+        # First pass: Extract all entities and track frequencies
         for idx, row in df.iterrows():
-            # Create experiment node
+            exp_id = row['id']
+            text_content = row[text_col] if pd.notna(row[text_col]) else ""
+            
+            if text_content:
+                entities = extract_entities(text_content)
+                all_entities[exp_id] = entities
+                
+                # Track entity frequencies across experiments
+                for category in ['impacts', 'organisms', 'experimental_conditions', 'measurements', 'space_terms']:
+                    for entity in entities.get(category, []):
+                        entity_key = f"{category}:{entity}"
+                        entity_frequencies[entity_key] = entity_frequencies.get(entity_key, 0) + 1
+                        
+                        # Track which experiments study what
+                        if category == 'organisms':
+                            if entity not in organism_experiments:
+                                organism_experiments[entity] = []
+                            organism_experiments[entity].append(exp_id)
+                        elif category == 'impacts':
+                            if entity not in impact_experiments:
+                                impact_experiments[entity] = []
+                            impact_experiments[entity].append(exp_id)
+                        elif category == 'experimental_conditions':
+                            if entity not in condition_experiments:
+                                condition_experiments[entity] = []
+                            condition_experiments[entity].append(exp_id)
+        
+        # Identify hub entities (appearing in 3+ experiments or high frequency)
+        hub_entities = {k: v for k, v in entity_frequencies.items() if v >= min(3, len(df) * 0.3)}
+        log_info(f"Identified {len(hub_entities)} hub entities: {list(hub_entities.keys())[:5]}...")
+        
+        # Second pass: Create hierarchical nodes and rich connectivity
+        for idx, row in df.iterrows():
+            # Create experiment node with comprehensive metadata
             exp_id = row['id']
             exp_node = f"Experiment:{exp_id}"
             
-            # Node attributes - include available fields
+            # Rich node attributes including publication metadata
             node_attrs = {
                 'type': 'experiment',
+                'node_level': 2,  # Hierarchy level
                 'id': exp_id,
-                'title': row['title']
+                'title': row['title'],
+                'centrality_degree': 0,  # Will be calculated later
+                'centrality_betweenness': 0.0,
+                'hub_score': 0.0
             }
             
-            # Add summary if available
+            # Add comprehensive metadata
             if text_col in df.columns and pd.notna(row[text_col]):
-                node_attrs['summary'] = str(row[text_col])[:500]  # Limit length for storage
+                node_attrs['summary'] = str(row[text_col])[:500]
             
-            # Add other metadata if available
-            for col in ['abstract', 'metadata', 'impacts']:
+            # Add publication date for temporal analysis
+            if 'publication_date' in df.columns and pd.notna(row['publication_date']):
+                node_attrs['publication_date'] = str(row['publication_date'])
+            
+            # Add other metadata fields
+            for col in ['abstract', 'metadata', 'impacts', 'authors', 'doi']:
                 if col in df.columns and pd.notna(row[col]):
-                    node_attrs[col] = str(row[col])[:200]  # Limit length
+                    node_attrs[col] = str(row[col])[:200]
             
             G.add_node(exp_node, **node_attrs)
             
-            # Extract entities from the text content
+            # Extract and process entities for this experiment
             text_content = row[text_col] if pd.notna(row[text_col]) else ""
             if text_content:
-                entities = extract_entities(text_content)
+                entities = all_entities.get(exp_id, {})
                 
-                # Add Impact nodes from extracted health impacts
+                # Create hierarchical Impact nodes with rich attributes
                 for impact in entities.get('impacts', []):
                     impact_node = f"Impact:{impact}"
-                    G.add_node(impact_node, 
-                              type='impact', 
-                              term=impact,
-                              description=f"Health impact: {impact}")
+                    is_hub = f"impacts:{impact}" in hub_entities
+                    frequency = entity_frequencies.get(f"impacts:{impact}", 1)
                     
-                    # Connect experiment to impact
+                    if not G.has_node(impact_node):
+                        G.add_node(impact_node, 
+                                  type='impact',
+                                  node_level=3,  # Lower in hierarchy
+                                  term=impact,
+                                  description=f"Health/biological impact: {impact}",
+                                  frequency=frequency,
+                                  is_hub=is_hub,
+                                  severity_score=min(frequency * 0.2, 1.0),
+                                  experiments_studying=len(impact_experiments.get(impact, [exp_id])))
+                    
+                    # Weighted edge based on confidence and frequency
+                    weight = 0.8 + (frequency * 0.1)
                     G.add_edge(exp_node, impact_node, 
                               relation='studies',
-                              confidence=0.8)
+                              confidence=0.8,
+                              weight=weight,
+                              evidence_strength=frequency)
                 
-                # Add Organization nodes
+                # Create Organism nodes with taxonomy information
+                for organism in entities.get('organisms', []):
+                    org_node = f"Organism:{organism}"
+                    is_hub = f"organisms:{organism}" in hub_entities
+                    frequency = entity_frequencies.get(f"organisms:{organism}", 1)
+                    
+                    if not G.has_node(org_node):
+                        G.add_node(org_node,
+                                  type='organism',
+                                  node_level=3,
+                                  name=organism,
+                                  frequency=frequency,
+                                  is_hub=is_hub,
+                                  taxonomy_info=_get_organism_taxonomy(organism),
+                                  experiments_count=len(organism_experiments.get(organism, [exp_id])))
+                    
+                    # Create "studies_organism" relationship
+                    weight = 0.9 + (frequency * 0.05)
+                    G.add_edge(exp_node, org_node,
+                              relation='studies_organism',
+                              confidence=0.9,
+                              weight=weight)
+                
+                # Create Experimental Condition nodes
+                for condition in entities.get('experimental_conditions', []):
+                    cond_node = f"Condition:{condition}"
+                    frequency = entity_frequencies.get(f"experimental_conditions:{condition}", 1)
+                    is_hub = f"experimental_conditions:{condition}" in hub_entities
+                    
+                    if not G.has_node(cond_node):
+                        G.add_node(cond_node,
+                                  type='experimental_condition',
+                                  node_level=3,
+                                  name=condition,
+                                  frequency=frequency,
+                                  is_hub=is_hub,
+                                  experiments_count=len(condition_experiments.get(condition, [exp_id])))
+                    
+                    weight = 0.7 + (frequency * 0.1)
+                    G.add_edge(exp_node, cond_node,
+                              relation='uses_condition',
+                              confidence=0.7,
+                              weight=weight)
+                
+                # Add Measurement and Space Term nodes
+                for measurement in entities.get('measurements', []):
+                    meas_node = f"Measurement:{measurement}"
+                    if not G.has_node(meas_node):
+                        G.add_node(meas_node,
+                                  type='measurement',
+                                  node_level=4,
+                                  name=measurement)
+                    G.add_edge(exp_node, meas_node,
+                              relation='uses_measurement',
+                              confidence=0.6,
+                              weight=0.6)
+                
+                for space_term in entities.get('space_terms', []):
+                    space_node = f"SpaceTerm:{space_term}"
+                    frequency = entity_frequencies.get(f"space_terms:{space_term}", 1)
+                    is_hub = f"space_terms:{space_term}" in hub_entities
+                    
+                    if not G.has_node(space_node):
+                        G.add_node(space_node,
+                                  type='space_term',
+                                  node_level=2,  # Important space concepts
+                                  name=space_term,
+                                  frequency=frequency,
+                                  is_hub=is_hub)
+                    
+                    weight = 0.8 + (frequency * 0.1)
+                    G.add_edge(exp_node, space_node,
+                              relation='involves',
+                              confidence=0.8,
+                              weight=weight)
+                
+                # Add Organization and Location nodes
                 for org in entities.get('organizations', []):
                     org_node = f"Organization:{org}"
-                    G.add_node(org_node,
-                              type='organization',
-                              name=org)
+                    if not G.has_node(org_node):
+                        G.add_node(org_node,
+                                  type='organization',
+                                  node_level=1,  # Top level
+                                  name=org)
                     G.add_edge(exp_node, org_node,
                               relation='conducted_by',
-                              confidence=0.7)
+                              confidence=0.7,
+                              weight=0.7)
                 
-                # Add Location nodes
                 for location in entities.get('locations', []):
                     loc_node = f"Location:{location}"
-                    G.add_node(loc_node,
-                              type='location', 
+                    if not G.has_node(loc_node):
+                        G.add_node(loc_node,
+                              type='location',
+                              node_level=2,
                               name=location)
                     G.add_edge(exp_node, loc_node,
                               relation='conducted_in',
-                              confidence=0.6)
+                              confidence=0.6,
+                              weight=0.6)
                 
-                # Simple causal relationship detection using 'causes' keyword
-                try:
-                    text_lower = text_content.lower()
-                    sentences = [s.strip() for s in text_content.split('.') if s.strip()]
-                except (AttributeError, TypeError) as e:
-                    log_error(f"Error processing text for causal analysis: {str(e)}")
-                    sentences = []
+                # Extract comprehensive relationships from all entity types
+                causal_relations = entities.get('causal_relations', [])
+                experimental_relations = entities.get('experimental_relations', [])
+                temporal_relations = entities.get('temporal_relations', [])
+                location_relations = entities.get('location_relations', [])
                 
-                for sentence in sentences:
+                # Process causal relationships
+                for relation in causal_relations:
                     try:
-                        if not sentence or not isinstance(sentence, str):
+                        if not isinstance(relation, dict):
                             continue
+                        
+                        subj = relation.get('subject', '').strip()
+                        obj = relation.get('object', '').strip()
+                        relation_type = relation.get('relation', 'causes')
+                        confidence = relation.get('confidence', 0.8)
+                        
+                        if subj and obj:
+                            subj_node = f"Entity:{subj}"
+                            obj_node = f"Entity:{obj}"
                             
-                        sentence_lower = sentence.lower().strip()
-                        if len(sentence_lower) > 0 and 'causes' in sentence_lower:
-                            # Extract simple cause-effect relationships with error handling
-                            try:
-                                cause_effect = _extract_simple_causes(sentence, entities)
-                                if not isinstance(cause_effect, list):
-                                    continue
-                            except Exception as e:
-                                log_error(f"Error extracting causes from sentence: {str(e)}")
-                                continue
-                                
-                            for cause_effect_pair in cause_effect:
-                                try:
-                                    if not isinstance(cause_effect_pair, (tuple, list)) or len(cause_effect_pair) != 2:
-                                        continue
-                                    cause, effect = cause_effect_pair
-                                    
-                                    if not cause or not effect:  # Skip if either is empty
-                                        continue
-                                        
-                                    cause_node = f"Entity:{str(cause).strip()}"
-                                    effect_node = f"Entity:{str(effect).strip()}"
-                                    
-                                    # Add cause and effect nodes if not already present
-                                    if not G.has_node(cause_node):
-                                        G.add_node(cause_node, type='entity', name=str(cause).strip())
-                                    if not G.has_node(effect_node):
-                                        G.add_node(effect_node, type='entity', name=str(effect).strip())
-                                    
-                                    # Add causal edge with safe string handling
-                                    evidence_text = str(sentence).strip()[:100] if sentence else ""
-                                    G.add_edge(cause_node, effect_node, 
-                                              relation='causes',
-                                              confidence=0.9,
-                                              source_experiment=exp_id,
-                                              evidence=evidence_text)
-                                              
-                                except (ValueError, TypeError, Exception) as e:
-                                    log_error(f"Error adding causal relationship: {str(e)}")
-                                    continue
-                                    
+                            # Add nodes if not present
+                            if not G.has_node(subj_node):
+                                G.add_node(subj_node, type='entity', name=subj, node_level=4)
+                            if not G.has_node(obj_node):
+                                G.add_node(obj_node, type='entity', name=obj, node_level=4)
+                            
+                            # Add weighted causal edge
+                            G.add_edge(subj_node, obj_node,
+                                      relation=relation_type,
+                                      confidence=confidence,
+                                      weight=confidence,
+                                      source_experiment=exp_id,
+                                      edge_type='causal')
                     except Exception as e:
-                        log_error(f"Error processing sentence for causal relationships: {str(e)}")
+                        log_error(f"Error processing causal relation: {str(e)}")
                         continue
+                
+                # Process experimental relationships (comparisons)
+                for relation in experimental_relations:
+                    try:
+                        if not isinstance(relation, dict):
+                            continue
+                        
+                        subj = relation.get('subject', '').strip()
+                        obj = relation.get('object', '').strip()
+                        relation_type = relation.get('relation', 'compared_to')
+                        confidence = relation.get('confidence', 0.7)
+                        
+                        if subj and obj:
+                            subj_node = f"Entity:{subj}"
+                            obj_node = f"Entity:{obj}"
+                            
+                            if not G.has_node(subj_node):
+                                G.add_node(subj_node, type='entity', name=subj, node_level=4)
+                            if not G.has_node(obj_node):
+                                G.add_node(obj_node, type='entity', name=obj, node_level=4)
+                            
+                            G.add_edge(subj_node, obj_node,
+                                      relation=relation_type,
+                                      confidence=confidence,
+                                      weight=confidence * 0.8,
+                                      source_experiment=exp_id,
+                                      edge_type='experimental')
+                    except Exception as e:
+                        log_error(f"Error processing experimental relation: {str(e)}")
+                        continue
+                
+                # Process temporal relationships
+                for relation in temporal_relations:
+                    try:
+                        if not isinstance(relation, dict):
+                            continue
+                        
+                        subj = relation.get('subject', '').strip()
+                        obj = relation.get('object', '').strip()
+                        relation_type = relation.get('relation', 'temporal')
+                        confidence = relation.get('confidence', 0.6)
+                        
+                        if subj and obj:
+                            subj_node = f"Entity:{subj}"
+                            obj_node = f"Entity:{obj}"
+                            
+                            if not G.has_node(subj_node):
+                                G.add_node(subj_node, type='entity', name=subj, node_level=4)
+                            if not G.has_node(obj_node):
+                                G.add_node(obj_node, type='entity', name=obj, node_level=4)
+                            
+                            G.add_edge(subj_node, obj_node,
+                                      relation=relation_type,
+                                      confidence=confidence,
+                                      weight=confidence * 0.6,
+                                      source_experiment=exp_id,
+                                      edge_type='temporal')
+                    except Exception as e:
+                        log_error(f"Error processing temporal relation: {str(e)}")
+                        continue
+        
+        # PHASE 3: Create cross-experiment connectivity
+        log_info("Creating cross-experiment connections...")
+        
+        # Connect experiments studying same organisms
+        for organism, exp_list in organism_experiments.items():
+            if len(exp_list) > 1:
+                for i in range(len(exp_list)):
+                    for j in range(i + 1, len(exp_list)):
+                        exp1_node = f"Experiment:{exp_list[i]}"
+                        exp2_node = f"Experiment:{exp_list[j]}"
+                        if G.has_node(exp1_node) and G.has_node(exp2_node):
+                            G.add_edge(exp1_node, exp2_node,
+                                      relation='studies_same_organism',
+                                      shared_organism=organism,
+                                      confidence=0.8,
+                                      weight=0.8,
+                                      edge_type='cross_experiment')
+        
+        # Connect experiments with shared impacts
+        for impact, exp_list in impact_experiments.items():
+            if len(exp_list) > 1:
+                for i in range(len(exp_list)):
+                    for j in range(i + 1, len(exp_list)):
+                        exp1_node = f"Experiment:{exp_list[i]}"
+                        exp2_node = f"Experiment:{exp_list[j]}"
+                        if G.has_node(exp1_node) and G.has_node(exp2_node):
+                            G.add_edge(exp1_node, exp2_node,
+                                      relation='studies_same_impact',
+                                      shared_impact=impact,
+                                      confidence=0.7,
+                                      weight=0.7,
+                                      edge_type='cross_experiment')
+        
+        # Connect experiments with shared conditions
+        for condition, exp_list in condition_experiments.items():
+            if len(exp_list) > 1:
+                for i in range(len(exp_list)):
+                    for j in range(i + 1, len(exp_list)):
+                        exp1_node = f"Experiment:{exp_list[i]}"
+                        exp2_node = f"Experiment:{exp_list[j]}"
+                        if G.has_node(exp1_node) and G.has_node(exp2_node):
+                            G.add_edge(exp1_node, exp2_node,
+                                      relation='uses_same_condition',
+                                      shared_condition=condition,
+                                      confidence=0.6,
+                                      weight=0.6,
+                                      edge_type='cross_experiment')
+        
+        # Create "studied_in" relationships (Impact → Organism → Experiment)
+        for impact_node in [n for n in G.nodes() if n.startswith('Impact:')]:
+            impact_name = impact_node.split(':', 1)[1]
+            # Find organisms that have this impact
+            for organism_node in [n for n in G.nodes() if n.startswith('Organism:')]:
+                # Check if any experiment studies both this impact and organism
+                impact_experiments_set = set()
+                organism_experiments_set = set()
+                
+                for pred in G.predecessors(impact_node):
+                    if pred.startswith('Experiment:'):
+                        impact_experiments_set.add(pred)
+                
+                for pred in G.predecessors(organism_node):
+                    if pred.startswith('Experiment:'):
+                        organism_experiments_set.add(pred)
+                
+                # If same experiments study both, create connection
+                if impact_experiments_set & organism_experiments_set:
+                    G.add_edge(impact_node, organism_node,
+                              relation='affects_organism',
+                              confidence=0.75,
+                              weight=0.75,
+                              edge_type='biological_pathway')
+        
+        # Add mitigation relationships
+        for exp_id in all_entities:
+            entities = all_entities[exp_id]
+            exp_node = f"Experiment:{exp_id}"
+            
+            for mitigation in entities.get('mitigation_strategies', []):
+                mitigation_node = f"Mitigation:{mitigation}"
+                if not G.has_node(mitigation_node):
+                    G.add_node(mitigation_node,
+                              type='mitigation',
+                              node_level=3,
+                              name=mitigation,
+                              strategy_type='countermeasure')
+                
+                G.add_edge(mitigation_node, exp_node,
+                          relation='mitigates',
+                          confidence=0.8,
+                          weight=0.8,
+                          edge_type='intervention')
+                
+                # Connect mitigations to impacts they address
+                for impact in entities.get('impacts', []):
+                    impact_node = f"Impact:{impact}"
+                    if G.has_node(impact_node):
+                        G.add_edge(mitigation_node, impact_node,
+                                  relation='mitigated_by',
+                                  confidence=0.7,
+                                  weight=0.7,
+                                  edge_type='therapeutic')
+        
+        # PHASE 4: Calculate graph analytics
+        log_info("Calculating graph analytics...")
+        
+        # Calculate centrality measures
+        try:
+            degree_centrality = nx.degree_centrality(G)
+            betweenness_centrality = nx.betweenness_centrality(G)
+            
+            # Update node attributes with centrality scores
+            for node in G.nodes():
+                G.nodes[node]['centrality_degree'] = degree_centrality.get(node, 0.0)
+                G.nodes[node]['centrality_betweenness'] = betweenness_centrality.get(node, 0.0)
+                
+                # Calculate hub score (combination of degree and frequency)
+                frequency = G.nodes[node].get('frequency', 1)
+                degree = G.degree(node)
+                hub_score = (degree * 0.7) + (frequency * 0.3)
+                G.nodes[node]['hub_score'] = hub_score
+            
+            # Identify communities/clusters
+            if hasattr(nx, 'community') and hasattr(nx.community, 'greedy_modularity_communities'):
+                try:
+                    # Convert to undirected for community detection
+                    G_undirected = G.to_undirected()
+                    communities = nx.community.greedy_modularity_communities(G_undirected)
+                    
+                    # Add community information to nodes
+                    for i, community in enumerate(communities):
+                        for node in community:
+                            if G.has_node(node):
+                                G.nodes[node]['community'] = i
+                    
+                    log_info(f"Detected {len(communities)} research communities")
+                except Exception as e:
+                    log_error(f"Community detection failed: {str(e)}")
+            
+        except Exception as e:
+            log_error(f"Error calculating centrality measures: {str(e)}")
+        
+        # Add temporal connections if publication dates available
+        if 'publication_date' in df.columns:
+            try:
+                # Sort experiments by date
+                exp_dates = {}
+                for idx, row in df.iterrows():
+                    if pd.notna(row.get('publication_date')):
+                        exp_dates[row['id']] = row['publication_date']
+                
+                sorted_exps = sorted(exp_dates.items(), key=lambda x: x[1])
+                
+                # Connect chronologically adjacent experiments
+                for i in range(len(sorted_exps) - 1):
+                    current_exp = f"Experiment:{sorted_exps[i][0]}"
+                    next_exp = f"Experiment:{sorted_exps[i + 1][0]}"
+                    
+                    if G.has_node(current_exp) and G.has_node(next_exp):
+                        G.add_edge(current_exp, next_exp,
+                                  relation='precedes_chronologically',
+                                  confidence=0.5,
+                                  weight=0.3,
+                                  edge_type='temporal_sequence')
+            except Exception as e:
+                log_error(f"Error creating temporal connections: {str(e)}")
         
         # Serialize graph to pickle file
         output_file = 'data/graph.pkl'
@@ -1194,15 +1741,51 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
         except Exception as e:
             log_error(f"Failed to serialize graph: {str(e)}")
         
-        log_info(f"✓ Built knowledge graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
+        # Calculate final graph metrics
+        num_nodes = G.number_of_nodes()
+        num_edges = G.number_of_edges()
+        density = nx.density(G) if num_nodes > 0 else 0
+        avg_degree = (2 * num_edges) / num_nodes if num_nodes > 0 else 0
         
-        # Print graph statistics
+        log_info(f"✓ Built rich knowledge graph: {num_nodes} nodes, {num_edges} edges")
+        log_info(f"  Graph density: {density:.3f}, Average degree: {avg_degree:.2f}")
+        
+        # Print comprehensive graph statistics
         node_types = {}
+        edge_types = {}
+        hub_nodes = []
+        
         for node, attrs in G.nodes(data=True):
             node_type = attrs.get('type', 'unknown')
             node_types[node_type] = node_types.get(node_type, 0) + 1
+            
+            # Identify hub nodes
+            if attrs.get('is_hub', False) or attrs.get('hub_score', 0) > 3:
+                hub_nodes.append((node, attrs.get('hub_score', 0)))
+        
+        for u, v, attrs in G.edges(data=True):
+            edge_type = attrs.get('edge_type', attrs.get('relation', 'unknown'))
+            edge_types[edge_type] = edge_types.get(edge_type, 0) + 1
+        
+        # Sort hub nodes by score
+        hub_nodes.sort(key=lambda x: x[1], reverse=True)
+        top_hubs = [node for node, score in hub_nodes[:5]]
         
         log_info(f"Node distribution: {node_types}")
+        log_info(f"Edge distribution: {edge_types}")
+        log_info(f"Top hub nodes: {top_hubs}")
+        log_info(f"Hub entities identified: {len(hub_entities)}")
+        
+        # Validate connectivity requirements
+        if avg_degree >= 2.0:
+            log_info("✅ Graph meets connectivity requirement (avg degree ≥ 2)")
+        else:
+            log_info(f"⚠️ Graph connectivity below target (avg degree: {avg_degree:.2f})")
+        
+        if num_nodes >= 15 and num_edges >= 10:
+            log_info("✅ Graph meets size requirements")
+        else:
+            log_info(f"⚠️ Graph size below target (nodes: {num_nodes}, edges: {num_edges})")
         
         return G
         
