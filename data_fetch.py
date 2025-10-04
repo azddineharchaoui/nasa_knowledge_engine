@@ -49,7 +49,7 @@ def fetch_publications(query: str = 'space biology', limit: int = 100) -> List[D
         publications = _fetch_genelab_publications(query, limit)
         
         if publications:
-            log(f"✓ GeneLab API succeeded: {len(publications)} publications")
+            log(f"GeneLab API succeeded: {len(publications)} publications")
             return publications[:limit]
         else:
             log("⚠ GeneLab API returned no results, trying fallback...")
@@ -70,7 +70,7 @@ def fetch_publications(query: str = 'space biology', limit: int = 100) -> List[D
         fallback_publications = search_ntrs_fallback(query, limit)
         
         if fallback_publications:
-            log(f"✓ NTRS fallback succeeded: {len(fallback_publications)} publications")
+            log(f"NTRS fallback succeeded: {len(fallback_publications)} publications")
             return fallback_publications[:limit]
         else:
             log("⚠ NTRS fallback returned no results")
@@ -91,7 +91,7 @@ def fetch_publications(query: str = 'space biology', limit: int = 100) -> List[D
         sample_publications = load_sample_publications()
         
         if sample_publications:
-            log(f"✓ Sample data fallback succeeded: {len(sample_publications)} publications")
+            log(f"Sample data fallback succeeded: {len(sample_publications)} publications")
             # Filter sample data based on query if possible
             filtered_samples = _filter_sample_data(sample_publications, query)
             return filtered_samples[:limit]
@@ -118,7 +118,7 @@ def load_sample_publications() -> List[Dict]:
     sample_data = load_from_cache(sample_file)
     
     if sample_data:
-        log(f"✓ Loaded {len(sample_data)} sample publications")
+        log(f"Loaded {len(sample_data)} sample publications")
         return sample_data
     else:
         log_error(f"Failed to load sample data from {sample_file}")
@@ -1369,7 +1369,7 @@ if __name__ == '__main__':
         assert len(data) > 0, "No publications were fetched"
         assert cache_success, "Failed to cache data"
         
-        log(f"✓ Successfully fetched and cached {len(data)} publications")
+        log(f"Successfully fetched and cached {len(data)} publications")
         
         # Print sample publication for inspection
         if data:
@@ -1391,7 +1391,7 @@ if __name__ == '__main__':
         try:
             log("Testing sample data loading...")
             sample_data = load_sample_publications()
-            log(f"✓ Sample data loaded: {len(sample_data)} publications available")
+            log(f"Sample data loaded: {len(sample_data)} publications available")
         except Exception as e:
             log(f"⚠ Sample data loading failed: {str(e)}")
         
@@ -1399,7 +1399,7 @@ if __name__ == '__main__':
         try:
             log("Testing NTRS fallback...")
             ntrs_results = search_ntrs_fallback('microgravity', limit=3)
-            log(f"✓ NTRS fallback returned {len(ntrs_results)} results")
+            log(f"NTRS fallback returned {len(ntrs_results)} results")
         except Exception as e:
             log(f"⚠ NTRS fallback test failed: {str(e)}")
         
@@ -1410,7 +1410,7 @@ if __name__ == '__main__':
             log("Simulating network failure scenario...")
             # This will test the full fallback chain
             offline_data = fetch_publications('radiation', limit=3)
-            log(f"✓ Offline mode successful: {len(offline_data)} publications")
+            log(f"Offline mode successful: {len(offline_data)} publications")
             if offline_data:
                 log(f"Sample offline result: {offline_data[0]['title'][:50]}...")
         except Exception as e:
@@ -1430,10 +1430,10 @@ if __name__ == '__main__':
             log("Attempting to load sample data as emergency fallback...")
             emergency_data = load_sample_publications()
             if emergency_data:
-                log(f"✓ Emergency fallback successful: {len(emergency_data)} sample publications loaded")
+                log(f"Emergency fallback successful: {len(emergency_data)} sample publications loaded")
                 cache_to_json(emergency_data, 'data/emergency_publications.json')
             else:
-                log("✗ Emergency fallback failed - no data available")
+                log("Emergency fallback failed - no data available")
         except Exception as fallback_error:
             log_error(f"Emergency fallback failed: {str(fallback_error)}")
         
@@ -1446,7 +1446,7 @@ if __name__ == '__main__':
         try:
             sample_data = load_sample_publications()
             if sample_data:
-                log("✓ Sample data is available for offline development")
+                log("Sample data is available for offline development")
             else:
                 log("⚠ Sample data not found - check 'data/sample_publications.json'")
         except Exception as sample_error:

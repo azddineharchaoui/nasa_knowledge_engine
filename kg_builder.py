@@ -58,7 +58,7 @@ def load_nlp_model(model_name: str = 'en_core_web_sm') -> bool:
     
     try:
         nlp = spacy.load(model_name)
-        log_info(f"✓ Loaded spaCy model: {model_name}")
+        log_info(f"Loaded spaCy model: {model_name}")
         return True
         
     except OSError:
@@ -969,7 +969,7 @@ def build_knowledge_graph(entities_list: List[Dict], experiment_ids: Optional[Li
                           relation=relation['relation'],
                           confidence=relation.get('confidence', 0.5))
         
-        log_info(f"✓ Built knowledge graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
+        log_info(f"Built knowledge graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
         return G
         
     except Exception as e:
@@ -1741,12 +1741,12 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
                     # Fallback for newer NetworkX versions
                     with open(output_file, 'wb') as f:
                         pickle.dump(G, f)
-                log_info(f"✓ Knowledge graph serialized to {output_file}")
+                log_info(f"Knowledge graph serialized to {output_file}")
             except Exception as nx_e:
                 # Fallback to standard pickle
                 with open(output_file, 'wb') as f:
                     pickle.dump(G, f)
-                log_info(f"✓ Knowledge graph serialized to {output_file} (using pickle)")
+                log_info(f"Knowledge graph serialized to {output_file} (using pickle)")
         except Exception as e:
             log_error(f"Failed to serialize graph: {str(e)}")
         
@@ -1756,7 +1756,7 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
         density = nx.density(G) if num_nodes > 0 else 0
         avg_degree = (2 * num_edges) / num_nodes if num_nodes > 0 else 0
         
-        log_info(f"✓ Built rich knowledge graph: {num_nodes} nodes, {num_edges} edges")
+        log_info(f"Built rich knowledge graph: {num_nodes} nodes, {num_edges} edges")
         log_info(f"  Graph density: {density:.3f}, Average degree: {avg_degree:.2f}")
         
         # Print comprehensive graph statistics
@@ -1787,14 +1787,14 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
         
         # Validate connectivity requirements
         if avg_degree >= 2.0:
-            log_info("✅ Graph meets connectivity requirement (avg degree ≥ 2)")
+            log_info("Graph meets connectivity requirement (avg degree >= 2)")
         else:
-            log_info(f"⚠️ Graph connectivity below target (avg degree: {avg_degree:.2f})")
+            log_info(f"Graph connectivity below target (avg degree: {avg_degree:.2f})")
         
         if num_nodes >= 15 and num_edges >= 10:
-            log_info("✅ Graph meets size requirements")
+            log_info("Graph meets size requirements")
         else:
-            log_info(f"⚠️ Graph size below target (nodes: {num_nodes}, edges: {num_edges})")
+            log_info(f"Graph size below target (nodes: {num_nodes}, edges: {num_edges})")
         
         return G
         
@@ -1907,7 +1907,7 @@ def load_kg(filepath: str = 'data/graph.pkl') -> Optional[object]:
             with open(filepath, 'rb') as f:
                 G = pickle.load(f)
         
-        log_info(f"✓ Loaded knowledge graph from {filepath}: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
+        log_info(f"Loaded knowledge graph from {filepath}: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
         return G
         
     except Exception as e:
@@ -3173,7 +3173,7 @@ if __name__ == '__main__':
     # Test 1: Load NLP model
     print("\n1. Testing NLP model loading...")
     model_loaded = load_nlp_model()
-    print(f"✓ NLP model loaded: {model_loaded}")
+    print(f"NLP model loaded: {model_loaded}")
     
     # Test 2: Entity extraction
     print("\n2. Testing entity extraction...")
@@ -3226,7 +3226,7 @@ if __name__ == '__main__':
             # Test loading the serialized graph
             loaded_graph = load_kg()
             if loaded_graph:
-                print(f"✓ Successfully loaded serialized graph: {loaded_graph.number_of_nodes()} nodes")
+                print(f"Successfully loaded serialized graph: {loaded_graph.number_of_nodes()} nodes")
                 
                 # Test querying the knowledge graph
                 print("\n   Testing knowledge graph querying...")

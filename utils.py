@@ -197,7 +197,13 @@ def log(msg: str) -> None:
         >>> log("Processing data batch 1/5")
         [INFO] Processing data batch 1/5
     """
-    print(f'[INFO] {msg}')
+    # Handle Unicode characters safely for Windows
+    try:
+        print(f'[INFO] {msg}')
+    except UnicodeEncodeError:
+        # Fallback for Windows console encoding issues
+        safe_message = msg.encode('ascii', 'replace').decode('ascii')
+        print(f'[INFO] {safe_message}')
 
 
 def log_info(message: str) -> None:
@@ -208,7 +214,13 @@ def log_info(message: str) -> None:
 
 def log_error(message: str) -> None:
     """Simple error logging function."""
-    print(f"[ERROR] {message}")
+    # Handle Unicode characters safely for Windows
+    try:
+        print(f"[ERROR] {message}")
+    except UnicodeEncodeError:
+        # Fallback for Windows console encoding issues
+        safe_message = message.encode('ascii', 'replace').decode('ascii')
+        print(f"[ERROR] {safe_message}")
 
 
 # Test and validation functions for prototype reliability

@@ -253,6 +253,7 @@ def load_pipeline_data(query: str = 'space biology', limit: int = 50) -> Tuple[p
     log_system_event(f"Loading pipeline data: query='{query}', limit={limit}")
     df, G = run_pipeline(query=query, limit=limit)
     
+    
     # Validate results
     df_valid, df_errors = validate_dataframe(df)
     if not df_valid:
@@ -504,11 +505,11 @@ def create_enhanced_network_plot(G, query_term=None, layout_type="spring", node_
         try:
             betweenness = nx.betweenness_centrality(filtered_G)[node] * 100
             closeness = nx.closeness_centrality(filtered_G)[node] * 100
-            # Combine degree and centrality for sizing
+            # Combine degree and centrality for sizing - MUCH BIGGER NODES
             centrality_score = (degree * 2 + betweenness + closeness) / 4
-            size = max(10, min(30, 10 + centrality_score))
+            size = max(25, min(80, 25 + centrality_score * 3))  # Much bigger range: 25-80
         except:
-            size = max(8, min(25, 8 + degree * 2))
+            size = max(20, min(60, 20 + degree * 4))  # Much bigger base size: 20-60
         
         node_size.append(size)
         
@@ -555,7 +556,7 @@ def create_enhanced_network_plot(G, query_term=None, layout_type="spring", node_
         ),
         text=node_text,
         textposition="middle center",
-        textfont=dict(size=8, color='white'),
+        textfont=dict(size=12, color='white', family='Arial Black'),  # Bigger, bolder text
         hovertext=hover_text,
         hoverinfo='text',
         showlegend=False
@@ -2448,6 +2449,7 @@ def main():
         with tab2:
             st.header("🕸️ Enhanced Network Graph Analysis")
             
+            
             if G is not None and G.number_of_nodes() > 0:
                 # Enhanced graph statistics dashboard
                 col1, col2, col3, col4, col5 = st.columns(5)
@@ -2583,7 +2585,11 @@ def main():
                                 show_communities=show_communities,
                                 edge_bundling=edge_bundling
                             )
-                            fig.update_layout(height=700)
+                            fig.update_layout(
+                                height=700,
+                                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[-2, 2]),
+                                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[-2, 2])
+                            )
                             
                         st.plotly_chart(fig, width='stretch', key="enhanced_network_plot")
                         
@@ -2743,15 +2749,19 @@ def main():
                         log_system_event(f"Visualization error: {str(e)}", "error")
                 
             else:
-                # No knowledge graph available
+                # No knowledge graph available - provide specific diagnosis
                 st.warning("⚠️ Knowledge graph not available")
                 
                 if not KG_BUILDER_AVAILABLE:
                     st.info("🔧 Knowledge graph module is not available. Check system status.")
                 elif G is None:
                     st.info("🔧 Knowledge graph could not be built from current data.")
-                else:
+                    st.info("💡 This usually means the pipeline failed during graph construction.")
+                elif G.number_of_nodes() == 0:
                     st.info("🔧 Knowledge graph is empty - try loading more data.")
+                    st.info("💡 The graph was created but has no nodes. Check if your data has sufficient content.")
+                else:
+                    st.info("🔧 Unknown graph issue - graph exists but not displaying properly.")
                 
                 # Show what a knowledge graph would look like
                 st.subheader("📋 Knowledge Graph Preview")

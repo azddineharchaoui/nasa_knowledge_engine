@@ -71,11 +71,11 @@ def run_pipeline(query: str = 'space biology', limit: int = 50) -> Tuple[Optiona
         >>> if graph is not None:
         ...     print(f"Knowledge graph: {graph.number_of_nodes()} nodes")
     """
-    log(f"🚀 Starting NASA Space Biology pipeline...")
+    log(f"Starting NASA Space Biology pipeline...")
     log(f"Query: '{query}', Limit: {limit}")
     
     # Step 1: Fetch Publications
-    log("📡 Step 1: Fetching publications...")
+    log("Step 1: Fetching publications...")
     if not DATA_FETCH_AVAILABLE:
         log_error("Data fetch module not available")
         return None, None
@@ -128,7 +128,7 @@ def run_pipeline(query: str = 'space biology', limit: int = 50) -> Tuple[Optiona
         # Continue pipeline without summaries
     
     # Step 4: Build Knowledge Graph
-    log("🕸️ Step 4: Building knowledge graph...")
+    log("Step 4: Building knowledge graph...")
     if not KG_BUILDER_AVAILABLE:
         log_error("Knowledge graph builder not available")
         return df, None
@@ -261,7 +261,7 @@ if __name__ == '__main__':
         print("   Pipeline will run with available components only")
     
     # Run pipeline with 'radiation' query as requested
-    print(f"\n🚀 Running pipeline with query: 'radiation'")
+    print(f"\nRunning pipeline with query: 'radiation'")
     print("-" * 40)
     
     try:
@@ -284,7 +284,7 @@ if __name__ == '__main__':
             print("❌ DataFrame: Not generated")
         
         if G is not None:
-            print(f"🕸️  Knowledge Graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
+            print(f"Knowledge Graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
             
             # Query the graph for radiation-related content
             if KG_BUILDER_AVAILABLE:
