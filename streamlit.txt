@@ -1,0 +1,240 @@
+NASA Space Biology Knowledge Engine - Streamlit app resource analysis
+
+This document captures a detailed analysis of everything in `app.py` that can consume CPU, memory, I/O, or network resources, why those parts are expensive, and concrete mitigations and improvements you can apply. It mirrors the full explanation provided in the earlier response.
+
+---
+
+High-level hotspots (quick map)
+- Data pipeline / I/O: run_pipeline(...) inside load_data()
+- Graph layout and graph processing: create_network_plot(G, ...) — especially nx.spring_layout
+- Building Plotly figures and rendering: st.plotly_chart(...)
+- DataFrame operations and string search/filtering: .str.contains, .apply, value_counts()
+- Graph queries: query_kg(G, search) and subsequent subgraph creation/attribute copying
+- Streamlit runtime model: reruns, session state, caching effects, and browser-side rendering (DataFrame & Plotly)
+- Logging: utils.log(...) (I/O and cost depending on implementation)
+
+Detailed breakdown
+
+1) Data pipeline / load_data()
+Location: function load_data(), calls run_pipeline(query='space biology', limit=50).
+
+What is consuming
+- I/O: run_pipeline likely reads files, hits APIs (network), or runs heavy NLP/embedding/summarization steps.
+- CPU: NLP summarization, entity extraction, building graph, large parsing tasks.
+- Memory: The DataFrame and Graph object returned may be large in RAM.
+
+Why it's expensive
+- Pipelines that fetch articles, run ML models, or build large graphs can take many seconds or minutes.
+- If run_pipeline loads raw documents then vectorizes or computes embeddings, it consumes CPU and possibly GPU.
+
+Symptoms
+- Long delays on page load / spinner active for many seconds.
+- High memory use after data loaded.
+- If run_pipeline is not cached, repeated reruns on widget changes make UX very slow.
+
+Mitigations
+- Keep @st.cache_resource on load_data() — good: it caches the result across reruns. Ensure cache key depends on query/limit if those can change.
+- If run_pipeline accepts parameters, include them in the cache key (use them as function arguments so cache varies correctly).
+- Add timing/logging around the call to measure (utils.log start/end with durations).
+- If it's I/O heavy, implement incremental fetch or pre-download smaller datasets for demo mode.
+- Provide a "Run pipeline (slow)" button rather than auto-running on app start.
+- Consider separating cached stages: data fetch (cached), graph build (cached), summarization (cached but optional).
+
+
+2) Graph layout: create_network_plot and networkx's spring_layout
+Location: create_network_plot(G, query_term=None) — calls to nx.spring_layout and loops over nodes and edges.
+
+What is consuming
+- CPU & memory during layout computation (spring layout is iterative and CPU-bound).
+- Memory to hold layout positions (pos dict with 2 floats per node), edge_x/edge_y lists (3 entries per edge), node lists.
+- CPU for hover string creation and computing degree per node.
+- CPU to build Plotly traces (serialization to JSON to send to browser).
+
+Why it's expensive
+- nx.spring_layout is force-directed; naive implementations are roughly O(n^2) per iteration. With many nodes this is slow.
+- Iteration counts (50–100) multiply runtime.
+- Large graphs create huge lists (edges and nodes) that take memory and time.
+
+Symptoms
+- Long delay when st.plotly_chart is called.
+- CPU spike while layout runs.
+- Browser may become slow/unresponsive if the figure payload is large.
+
+Mitigations
+- Limit nodes before running expensive layout — sample or show subgraph (e.g., top degree nodes) when G is large.
+- Use faster/approximate layouts or fewer iterations for big graphs (iterations=20 for large graphs).
+- Precompute and cache layouts (use @st.cache_resource keyed by graph id/hash and layout params).
+- Avoid verbose hover text for all nodes; compute detailed hover text lazily for selected nodes.
+- Consider using browser-native graph viewers (pyvis, cytoscape) that can handle large graphs better.
+
+Practical rule: Do not run spring_layout on graphs with > a few hundred nodes without caching and sampling.
+
+
+3) Building Plotly Figures and Rendering
+Location: create_network_plot and st.plotly_chart calls.
+
+What is consuming
+- CPU for figure construction and JSON serialization.
+- Browser memory and CPU to render the figure (plotly client-side).
+- Network/IPC between Streamlit server and browser sending the figure JSON.
+
+Why it's expensive
+- Large arrays of coordinates and texts convert to big JSON payloads transferred to the browser (tens of MBs for big graphs).
+- Browser-side rendering of thousands of markers/lines is slow without WebGL.
+
+Symptoms
+- Slow page load or long time to display the figure.
+- Browser tab becomes unresponsive with large graphs.
+
+Mitigations
+- Limit drawn points (sample or cluster nodes).
+- Use Plotly WebGL traces (scattergl) for large scatter plots for faster rendering.
+- Shorten hover text and send minimal metadata.
+- Show a high-level overview first and let users request full subgraph on demand.
+
+
+4) DataFrame operations, string searches and keyword extraction
+Locations:
+- Unique keywords extraction in sidebar
+- Search mask creation using .str.contains
+- filtered_df['keywords'].apply(keyword_match)
+
+What is consuming
+- CPU for string ops and .apply loops.
+- Memory for boolean masks and intermediate DataFrame copies.
+
+Why it's expensive
+- .apply with a Python function is slow for many rows (Python-level loop overhead).
+- .str.contains is vectorized but still heavy for many long strings.
+
+Symptoms
+- Slow filter/search operations on large DataFrames.
+- UI lag when typing or toggling filters if not debounced/cached.
+
+Mitigations
+- Vectorize where possible and pre-normalize keywords at ingestion (store sets or normalized lists).
+- Avoid apply with Python loops; use explode()/stack or vectorized set membership techniques when possible.
+- Debounce search input or use an explicit Search button to avoid re-running on each keystroke.
+- Cache keyword lists / counts via @st.cache_data or @st.cache_resource.
+- For large text search, use an index (sqlite FTS, whoosh, or embeddings+ANN) instead of repeated .str.contains.
+
+
+5) Graph queries and subgraph creation: query_kg + building subgraph
+Location: code that calls query_kg(G, search) then builds a subgraph and copies attributes.
+
+What is consuming
+- CPU/Memory inside query_kg (could be scanning all nodes, embedding similarity, or graph algorithms).
+- Memory duplication when creating subgraph = nx.Graph() and copying attributes from G to subgraph.
+
+Why it's expensive
+- query_kg may scan all nodes or compute expensive similarity metrics per query.
+- Copying node attributes duplicates memory, so both G and subgraph hold similar data.
+- If many nodes/edges are returned, the visualization cost follows (layout + plotly transfer).
+
+Mitigations
+- Limit nodes/edges returned from query_kg (top-K), and consider paginating results.
+- Avoid copying full attributes; copy only what is needed for the UI (ids, title, short summary).
+- Cache query results for common searches.
+- Build an inverted index (keyword->node list) to avoid scanning every node each query.
+
+
+6) Streamlit rerun model, session state, and caching
+Location: throughout the app; top-level code re-executes on every widget change.
+
+What is consuming
+- Uncached expensive operations re-run on each widget change.
+- Storing large objects in st.session_state increases server process memory.
+
+Why it's expensive
+- Streamlit runs the script top-to-bottom on each interaction; expensive calls must be cached.
+- session_state persists but should only store small identifiers, not big objects.
+
+Mitigations
+- Cache expensive functions with @st.cache_resource (for graphs/layouts) or @st.cache_data (for DataFrames).
+- Store only small IDs or keys in session_state, not full objects.
+- Use st.experimental_rerun carefully.
+- Ensure cached functions use their parameters as cache keys when appropriate.
+
+
+7) UI rendering: st.dataframe, st.selectbox, st.metric
+What is consuming
+- Browser memory and CPU when rendering large DataFrames or many widgets.
+
+Mitigations
+- Show only head() or paginated views; limit rows for st.dataframe.
+- Limit selectbox choices to top-N items.
+- Use lighter displays (st.table or formatted text) when possible.
+
+
+8) Logging: utils.log(...)
+What is consuming
+- I/O if logs are written to disk or external services; frequent logs can slow hot loops.
+
+Mitigations
+- Use buffered/asynchronous logging for high-volume logs.
+- Avoid per-node logging inside large loops.
+
+
+9) Unknown external functions: run_pipeline, query_kg
+Treat as potentially the heaviest parts. Instrument them with timing and memory logging. They likely involve:
+- run_pipeline: fetching data, parsing, NLP/summarization, graph building.
+- query_kg: graph search, similarity computation, or scanning nodes.
+
+You must inspect and profile these functions directly.
+
+
+Complexity summary (rough)
+- nx.spring_layout: approx O(n^2) per iteration — bad for large n.
+- Building lists for edges: O(E) memory (3 * E entries).
+- Pandas .apply over rows: O(N) with high CPython overhead.
+- Plotly JSON payload: O(V + E).
+
+
+Practical mitigations and code/behavior suggestions
+- Caching:
+  - Use @st.cache_data for DataFrames and @st.cache_resource for persistent objects like Graphs and precomputed layouts.
+  - Cache layouts per graph ID/hash and layout params.
+- Sampling:
+  - For G.number_of_nodes() > threshold (e.g., 300), sample nodes by degree, by search relevance, or random subset.
+- Reduce iterations:
+  - Use fewer iterations in spring_layout for large graphs.
+- UI controls:
+  - Add an explicit "Render full graph" checkbox or "Build Graph" button.
+  - Debounce search input or require explicit Search button.
+- Use WebGL (scattergl) for large node sets in Plotly.
+- Indexing for text search:
+  - Build an in-memory index or use a small FTS database to make queries fast.
+- Avoid duplicate copies:
+  - Instead of creating a full nx.Graph copy with attributes, create a lightweight view with only needed attributes.
+
+
+Minimal checklist to measure and prioritize fixes
+1. Add timing logs around run_pipeline, create_network_plot layout calls, query_kg, and DataFrame filters.
+2. Run the app with a realistic dataset and monitor CPU/memory in Task Manager.
+3. If graph layout is the bottleneck, implement cached layouts and sampling.
+4. If run_pipeline is the bottleneck, make it optional behind a button and cache outputs to disk.
+5. If browser rendering is the bottleneck, switch to WebGL or a lighter visualization.
+
+
+Tiny concrete code hints (non-invasive)
+- Cache layout:
+  - @st.cache_resource
+def cached_layout(graph_hash, nodes, k, iterations):
+      return nx.spring_layout(...)
+- Debounce search: replace auto text_input filtering with a Search button so expensive work only runs after explicit clicks.
+- Limit DataFrame display: st.dataframe(filtered_df.head(50))
+
+
+Final recommendations (priority)
+1. Instrument timings/logging to see real hotspots (highest priority).
+2. Cache run_pipeline and heavy layout computations.
+3. Limit graph rendering for large graphs — sample or cluster nodes.
+4. Replace Python apply loops for filters with vectorized or preprocessed structures.
+5. Add UI gating for heavy actions (button to "Build Graph" or "Run Pipeline").
+
+
+If you want, I can implement any of these changes directly in `app.py` (timing logs, layout caching, sampling thresholds, or a Search button). I can also add a small README section with run/debug instructions.
+
+---
+
+End of analysis.

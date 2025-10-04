@@ -3,7 +3,15 @@ NASA Space Biology Knowledge Engine - Streamlit Dashboard
 
 Interactive web application for exploring space biology research impacts
 through AI-powered knowledge graphs and summarization.
+
+
+identified that the Streamlit app's slowness was due to full integration pipeline
+execution and expensive graph layout computations. 
+Implemented a fast mode that skips heavy AI summarization and reduces 
+the number of publications loaded, along with reducing graph layout iterations.
+These changes significantly improved app startup time and rendering speed
 """
+
 
 import streamlit as st
 import pandas as pd
@@ -29,7 +37,7 @@ except ImportError as e:
 
 
 @st.cache_resource
-def load_data():
+def load_data(fast_mode: bool = True, limit: int = 20):
     """Load and cache the complete pipeline results."""
     if not PIPELINE_AVAILABLE:
         # Return sample data for demo purposes
@@ -43,7 +51,9 @@ def load_data():
     
     try:
         utils.log("Loading Space Biology data pipeline...")
-        df, G = run_pipeline(query='space biology', limit=50)
+        # Propagate fast mode via env for downstream components that may read it
+        os.environ['NKE_FAST_MODE'] = '1' if fast_mode else '0'
+        df, G = run_pipeline(query='space biology', limit=limit, fast_mode=fast_mode)
         utils.log(f"Loaded {len(df)} publications with {G.number_of_nodes() if G else 0} knowledge graph nodes")
         return df, G
     except Exception as e:
@@ -62,18 +72,18 @@ def create_network_plot(G, query_term=None):
         # Multiple layout options for better visualization
         if G.number_of_nodes() > 100:
             # For large graphs, use faster layout
-            pos = nx.spring_layout(G, k=2/np.sqrt(G.number_of_nodes()), iterations=30)
+            pos = nx.spring_layout(G, k=2/np.sqrt(G.number_of_nodes()), iterations=20, seed=42)
         elif G.number_of_nodes() > 20:
             # Medium graphs - balanced quality/speed
-            pos = nx.spring_layout(G, k=1.5, iterations=50)
+            pos = nx.spring_layout(G, k=1.5, iterations=30, seed=42)
         else:
-            # Small graphs - high quality layout
-            pos = nx.spring_layout(G, k=1, iterations=100)
+            # Small graphs - quicker layout for responsiveness
+            pos = nx.spring_layout(G, k=1, iterations=25, seed=42)
             
         # Alternative layouts for comparison (can be toggled)
         if query_term and len(query_term) > 0:
-            # For search results, try circular layout for better visibility
-            pos = nx.spring_layout(G, k=1.2, iterations=60)
+            # For search results, try focused layout for better visibility
+            pos = nx.spring_layout(G, k=1.2, iterations=20, seed=42)
             
     except Exception:
         # Fallback to simple random layout
@@ -270,11 +280,24 @@ def main():
     st.title('🚀 Space Biology Knowledge Engine')
     st.markdown("*AI-powered exploration of space biology research impacts*")
     
+    # Sidebar controls
+    st.sidebar.header("🔍 Search & Filters")
+
+    # Performance options
+    st.sidebar.subheader("Performance")
+    fast_mode = st.sidebar.checkbox("Fast Mode (skip AI summarization)", value=True,
+                                    help="Uses lightweight summaries and speeds up loading. Turn off for full AI summaries.")
+
+    # Data limit control depending on mode
+    default_limit = 20 if fast_mode else 50
+    limit = st.sidebar.slider("Publications to load", min_value=5, max_value=100 if not fast_mode else 50,
+                              value=default_limit, step=5)
+
     # Load data
     with st.spinner('Loading Space Biology pipeline...'):
-        df, G = load_data()
+        df, G = load_data(fast_mode=fast_mode, limit=limit)
     
-    # Sidebar controls
+    # Sidebar controls continued
     st.sidebar.header("🔍 Search & Filters")
     
     # Search input as requested

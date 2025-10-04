@@ -12,6 +12,7 @@ and building knowledge graphs for analysis and visualization.
 import pandas as pd
 from typing import Tuple, Optional, Any
 from pathlib import Path
+import os
 
 # Import all pipeline modules
 try:
@@ -46,7 +47,7 @@ except ImportError as e:
 from utils import log, log_error, cache_to_json
 
 
-def run_pipeline(query: str = 'space biology', limit: int = 50) -> Tuple[Optional[pd.DataFrame], Optional[Any]]:
+def run_pipeline(query: str = 'space biology', limit: int = 50, fast_mode: bool = False) -> Tuple[Optional[pd.DataFrame], Optional[Any]]:
     """
     Execute the complete NASA Space Biology research pipeline.
     
@@ -115,17 +116,45 @@ def run_pipeline(query: str = 'space biology', limit: int = 50) -> Tuple[Optiona
     
     # Step 3: Summarize Abstracts  
     log("🤖 Step 3: Summarizing abstracts...")
-    if not SUMMARIZER_AVAILABLE:
-        log_error("Summarizer module not available")
-        return df, None  # Return df even if summarization fails
-    
-    try:
-        df = summarizer.summarize_abstracts(df)
-        summaries_count = df['summary'].notna().sum() if 'summary' in df.columns else 0
-        log(f"✓ Generated {summaries_count} summaries")
-    except Exception as e:
-        log_error(f"Error in summarization step: {str(e)}")
-        # Continue pipeline without summaries
+    # Fast mode can be enabled either via parameter or environment variable
+    env_fast = os.getenv('NKE_FAST_MODE', '').strip() in ['1', 'true', 'True']
+    effective_fast_mode = bool(fast_mode or env_fast)
+
+    if effective_fast_mode:
+        try:
+            log("⚡ Fast Mode: Skipping AI model loading; using lightweight summaries...")
+            df_fast = df.copy()
+            if SUMMARIZER_AVAILABLE and hasattr(summarizer, '_enhanced_fallback_summarization'):
+                df_fast['summary'] = [
+                    summarizer._enhanced_fallback_summarization(str(a), 100) if isinstance(a, str) and a.strip() else 'No summary available'
+                    for a in df_fast.get('abstract', []).tolist() if 'abstract' in df_fast.columns
+                ] if 'abstract' in df_fast.columns else ['No abstract available'] * len(df_fast)
+            else:
+                # Simple first-sentence/truncate fallback
+                def _simple_sum(a: str) -> str:
+                    if not isinstance(a, str) or not a.strip():
+                        return 'No summary available'
+                    sent = a.split('.')
+                    first = (sent[0] + '.') if sent else a
+                    return first[:200]
+                df_fast['summary'] = df_fast['abstract'].apply(_simple_sum) if 'abstract' in df_fast.columns else ['No abstract available'] * len(df_fast)
+            df = df_fast
+            summaries_count = df['summary'].notna().sum() if 'summary' in df.columns else 0
+            log(f"✓ Fast Mode summaries generated: {summaries_count}")
+        except Exception as e:
+            log_error(f"Fast Mode summarization failed: {str(e)}")
+            # proceed without summaries
+    else:
+        if not SUMMARIZER_AVAILABLE:
+            log_error("Summarizer module not available")
+            return df, None  # Return df even if summarization fails
+        try:
+            df = summarizer.summarize_abstracts(df)
+            summaries_count = df['summary'].notna().sum() if 'summary' in df.columns else 0
+            log(f"✓ Generated {summaries_count} summaries")
+        except Exception as e:
+            log_error(f"Error in summarization step: {str(e)}")
+            # Continue pipeline without summaries
     
     # Step 4: Build Knowledge Graph
     log("🕸️ Step 4: Building knowledge graph...")

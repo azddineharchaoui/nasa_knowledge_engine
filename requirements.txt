@@ -20,12 +20,12 @@ networkx>=3.0
 plotly>=5.15.0
 
 # AI/ML Core Dependencies - Version Pinned for Stability
-torch==2.4.1
-torchvision==0.19.1
-torchaudio==2.4.1
-transformers==4.44.2
-sentence-transformers==2.7.0
-accelerate==0.33.0
+torch
+torchvision
+torchaudio
+transformers
+sentence-transformers
+accelerate
 
 # Additional ML libraries
 scikit-learn>=1.3.0
