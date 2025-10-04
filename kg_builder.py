@@ -72,48 +72,55 @@ def load_nlp_model(model_name: str = 'en_core_web_sm') -> bool:
 
 def extract_entities(text: str) -> Dict:
     """
-    Extract named entities and custom impact relationships from text.
+    Enhanced entity extraction for space biology research abstracts.
     
-    Uses spaCy NER to identify entities and custom rules to find health-related
-    impacts like 'bone loss', 'muscle atrophy', etc.
+    Extracts comprehensive entities including organisms, experimental conditions,
+    measurements, space-specific terms, and multiple relationship types.
     
     Args:
         text: Input text to analyze
         
     Returns:
         Dictionary containing:
-        - entities: List of (text, label) tuples from spaCy NER
-        - impacts: List of health impact terms found using custom rules
-        - locations: Extracted location entities (GPE, LOC)
-        - organizations: Organization entities (ORG)
-        - custom_relations: Rule-based relationship extraction
+        - entities: List of (text, label) tuples from spaCy NER and custom patterns
+        - impacts: Health and biological impact terms
+        - locations: Spatial and environmental locations
+        - organizations: Research organizations and agencies
+        - organisms: Scientific organism names and common names
+        - experimental_conditions: Spaceflight, ground control, radiation conditions
+        - measurements: Gene expression, protein levels, physiological measurements
+        - space_terms: Microgravity, ISS, spacecraft-specific terminology
+        - causal_relations: "causes", "leads to", "results in" relationships
+        - experimental_relations: "compared to", "versus" relationships
+        - temporal_relations: "during", "after", "before" relationships
+        - location_relations: "in space", "on ISS" relationships
+        - mitigation_strategies: Exercise, nutrition, medication countermeasures
         
     Example:
-        >>> result = extract_entities("Bone loss affects astronauts during ISS missions")
+        >>> result = extract_entities("Microgravity causes bone loss in Mus musculus during ISS missions")
         >>> print(result['impacts'])  # ['bone loss']
-        >>> print(result['entities'])  # [('ISS', 'ORG'), ...]
+        >>> print(result['organisms'])  # ['Mus musculus']
+        >>> print(result['space_terms'])  # ['microgravity', 'ISS']
     """
     if not text or not text.strip():
         return {
-            'entities': [],
-            'impacts': [],
-            'locations': [],
-            'organizations': [],
-            'custom_relations': []
+            'entities': [], 'impacts': [], 'locations': [], 'organizations': [],
+            'organisms': [], 'experimental_conditions': [], 'measurements': [],
+            'space_terms': [], 'causal_relations': [], 'experimental_relations': [],
+            'temporal_relations': [], 'location_relations': [], 'mitigation_strategies': []
         }
     
-    # Initialize result structure
+    # Initialize comprehensive result structure
     result = {
-        'entities': [],
-        'impacts': [],
-        'locations': [],
-        'organizations': [],
-        'custom_relations': []
+        'entities': [], 'impacts': [], 'locations': [], 'organizations': [],
+        'organisms': [], 'experimental_conditions': [], 'measurements': [],
+        'space_terms': [], 'causal_relations': [], 'experimental_relations': [],
+        'temporal_relations': [], 'location_relations': [], 'mitigation_strategies': []
     }
     
     # Fallback processing if spaCy not available
     if not SPACY_AVAILABLE or nlp is None:
-        return _fallback_entity_extraction(text)
+        return _enhanced_fallback_extraction(text)
     
     try:
         # Process text with spaCy
@@ -129,13 +136,37 @@ def extract_entities(text: str) -> Dict:
             elif ent.label_ == 'ORG':  # Organization
                 result['organizations'].append(ent.text)
         
-        # Custom rule-based impact extraction
-        result['impacts'] = _extract_health_impacts(text, doc)
+        # Enhanced custom entity extraction
+        result['impacts'] = _extract_enhanced_health_impacts(text, doc)
+        result['organisms'] = _extract_organisms(text, doc)
+        result['experimental_conditions'] = _extract_experimental_conditions(text, doc)
+        result['measurements'] = _extract_measurements(text, doc)
+        result['space_terms'] = _extract_space_terms(text, doc)
+        result['mitigation_strategies'] = _extract_mitigation_strategies(text, doc)
         
-        # Extract custom relationships using dependency parsing
-        result['custom_relations'] = _extract_custom_relations(doc)
+        # Enhanced relationship extraction
+        result['causal_relations'] = _extract_causal_relations(text, doc)
+        result['experimental_relations'] = _extract_experimental_relations(text, doc)
+        result['temporal_relations'] = _extract_temporal_relations(text, doc)
+        result['location_relations'] = _extract_location_relations(text, doc)
         
-        log_info(f"Extracted {len(result['entities'])} entities, {len(result['impacts'])} impacts")
+        # Add custom patterns to locations and organizations
+        result['locations'].extend(_extract_space_locations(text))
+        result['organizations'].extend(_extract_space_organizations(text))
+        
+        # Remove duplicates from string lists (not relationship dictionaries)
+        string_categories = ['impacts', 'locations', 'organizations', 'organisms', 
+                           'experimental_conditions', 'measurements', 'space_terms', 'mitigation_strategies']
+        for key in string_categories:
+            if key in result and isinstance(result[key], list):
+                result[key] = list(set(result[key]))
+        
+        # Remove duplicate tuples from entities
+        if 'entities' in result:
+            result['entities'] = list(set(result['entities']))
+        
+        total_entities = sum(len(v) for v in result.values() if isinstance(v, list))
+        log_info(f"Enhanced extraction: {total_entities} total entities across {len(result)} categories")
         return result
         
     except Exception as e:
@@ -143,15 +174,9 @@ def extract_entities(text: str) -> Dict:
         return _fallback_entity_extraction(text)
 
 
-def _extract_health_impacts(text: str, doc: Optional[object] = None) -> List[str]:
+def _extract_enhanced_health_impacts(text: str, doc: Optional[object] = None) -> List[str]:
     """
-    Extract health impact terms using custom rules.
-    
-    Looks for patterns like:
-    - "bone loss"
-    - "muscle atrophy" 
-    - "radiation exposure"
-    - "cardiovascular deconditioning"
+    Extract comprehensive health and biological impact terms.
     
     Args:
         text: Input text
@@ -161,55 +186,572 @@ def _extract_health_impacts(text: str, doc: Optional[object] = None) -> List[str
         List of identified health impact terms
     """
     impacts = []
+    text_lower = text.lower()
     
-    # Health impact patterns - terms that indicate biological effects
+    # Comprehensive health impact patterns
     impact_patterns = [
-        # Bone-related impacts
-        r'bone\s+(?:loss|density|deterioration|demineralization|weakening)',
-        r'(?:decreased|reduced|loss\s+of)\s+bone\s+(?:density|mineral|mass)',
-        r'osteo(?:porosis|penia)',
+        # Bone and skeletal impacts
+        r'bone\s+(?:loss|density|deterioration|demineralization|weakening|resorption)',
+        r'(?:decreased|reduced|loss\s+of)\s+bone\s+(?:density|mineral|mass|formation)',
+        r'osteo(?:porosis|penia|blast|clast)',
+        r'skeletal\s+(?:deconditioning|changes|adaptations)',
+        r'trabecular\s+(?:bone|thinning|loss)',
+        r'cortical\s+(?:bone|thinning|porosity)',
         
-        # Muscle-related impacts  
-        r'muscle\s+(?:atrophy|wasting|weakness|deterioration|loss)',
-        r'(?:decreased|reduced|loss\s+of)\s+muscle\s+(?:mass|strength|function)',
-        r'sarcopenia',
+        # Muscle and strength impacts
+        r'muscle\s+(?:atrophy|wasting|weakness|deterioration|loss|deconditioning)',
+        r'(?:decreased|reduced|loss\s+of)\s+muscle\s+(?:mass|strength|function|volume)',
+        r'sarcopenia|myofiber\s+(?:atrophy|changes)',
+        r'strength\s+(?:loss|reduction|decline)',
+        r'exercise\s+(?:capacity|tolerance)\s+(?:reduction|decline)',
         
         # Cardiovascular impacts
-        r'cardiovascular\s+(?:deconditioning|changes|adaptation)',
-        r'heart\s+(?:rate|function|performance)\s+(?:changes|alterations)',
-        r'blood\s+pressure\s+(?:changes|regulation)',
+        r'cardiovascular\s+(?:deconditioning|changes|adaptation|dysfunction)',
+        r'heart\s+(?:rate|function|performance|muscle)\s+(?:changes|alterations|deconditioning)',
+        r'blood\s+pressure\s+(?:changes|regulation|orthostatic)',
+        r'cardiac\s+(?:output|function|deconditioning)\s+(?:reduction|changes)',
+        r'orthostatic\s+(?:intolerance|hypotension)',
         
-        # Radiation impacts
-        r'radiation\s+(?:exposure|damage|effects)',
-        r'DNA\s+(?:damage|repair|mutation)',
-        r'cancer\s+risk',
+        # Radiation and DNA impacts
+        r'radiation\s+(?:exposure|damage|effects|induced)',
+        r'DNA\s+(?:damage|repair|mutation|strand\s+breaks)',
+        r'cancer\s+(?:risk|incidence|development)',
+        r'chromosomal\s+(?:aberrations|damage)',
+        r'oxidative\s+(?:stress|damage)',
         
-        # General physiological impacts
-        r'immune\s+(?:system|function|response)\s+(?:suppression|changes|impairment)',
-        r'sleep\s+(?:disturbances|disorders|disruption)',
-        r'vision\s+(?:changes|impairment|problems)',
-        r'spatial\s+(?:disorientation|orientation)\s+(?:problems|issues)'
+        # Neurological and vision impacts
+        r'vision\s+(?:changes|impairment|problems|loss)',
+        r'visual\s+(?:acuity|field)\s+(?:changes|loss)',
+        r'optic\s+(?:disc|nerve)\s+(?:swelling|changes)',
+        r'spatial\s+(?:disorientation|orientation)\s+(?:problems|issues)',
+        r'neuro(?:cognitive|behavioral)\s+(?:changes|impairment)',
+        r'brain\s+(?:volume|changes|structure)\s+(?:loss|alterations)',
+        
+        # Immune system impacts
+        r'immune\s+(?:system|function|response)\s+(?:suppression|changes|impairment|dysfunction)',
+        r'immunosuppression|immune\s+deficiency',
+        r'T-cell\s+(?:function|count|response)\s+(?:reduction|impairment)',
+        r'cytokine\s+(?:production|response)\s+(?:changes|alterations)',
+        
+        # Sleep and circadian impacts
+        r'sleep\s+(?:disturbances|disorders|disruption|quality)\s+(?:changes|reduction)',
+        r'circadian\s+(?:rhythm|cycle)\s+(?:disruption|changes)',
+        r'sleep-wake\s+cycle\s+(?:disruption|alterations)',
+        
+        # Kidney and fluid impacts
+        r'kidney\s+(?:stone|function)\s+(?:formation|changes|impairment)',
+        r'renal\s+(?:function|calculi)\s+(?:changes|formation)',
+        r'fluid\s+(?:shift|redistribution)',
+        r'dehydration|fluid\s+loss',
+        
+        # Gene expression and protein impacts
+        r'gene\s+expression\s+(?:changes|alterations|upregulation|downregulation)',
+        r'protein\s+(?:levels|expression|modifications)\s+(?:changes|alterations)',
+        r'transcriptional\s+(?:changes|regulation|activity)',
+        r'enzymatic\s+activity\s+(?:changes|reduction|enhancement)'
     ]
     
     # Find all matching patterns
-    text_lower = text.lower()
     for pattern in impact_patterns:
         matches = re.finditer(pattern, text_lower)
         for match in matches:
             impact_term = match.group().strip()
-            if impact_term not in impacts:
+            if impact_term and impact_term not in impacts:
                 impacts.append(impact_term)
     
-    # Custom rule: look for 'loss' near 'bone' as requested
-    loss_bone_pattern = r'(?:bone\s+\w*\s*){0,3}loss|loss\s+(?:\w+\s+){0,3}bone'
-    bone_loss_matches = re.finditer(loss_bone_pattern, text_lower)
-    for match in bone_loss_matches:
-        context = match.group().strip()
-        if 'bone' in context and 'loss' in context:
-            impacts.append('bone loss')
-            break
+    return impacts
+
+
+def _extract_organisms(text: str, doc: Optional[object] = None) -> List[str]:
+    """Extract organism names from text using scientific and common names."""
+    organisms = []
+    text_lower = text.lower()
     
-    return list(set(impacts))  # Remove duplicates
+    # Scientific organism name patterns
+    organism_patterns = [
+        # Common lab organisms
+        r'mus\s+musculus',
+        r'rattus\s+norvegicus', 
+        r'arabidopsis\s+thaliana',
+        r'drosophila\s+melanogaster',
+        r'caenorhabditis\s+elegans',
+        r'saccharomyces\s+cerevisiae',
+        r'escherichia\s+coli',
+        r'homo\s+sapiens',
+        
+        # Common names
+        r'\bmice?\b|\bmouse\b',
+        r'\brats?\b',
+        r'\bflies\b|\bfly\b',
+        r'\bworms?\b',
+        r'\byeast\b',
+        r'\bbacteria\b',
+        r'\bhumans?\b|\bpeople\b',
+        r'\bastronauts?\b|\bcrewmembers?\b',
+        
+        # Plant terms
+        r'seedlings?\b',
+        r'plants?\b',
+        r'arabidopsis\b'
+    ]
+    
+    for pattern in organism_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            organism = match.group().strip()
+            if organism and organism not in organisms:
+                organisms.append(organism)
+    
+    return organisms
+
+
+def _extract_experimental_conditions(text: str, doc: Optional[object] = None) -> List[str]:
+    """Extract experimental conditions and treatments."""
+    conditions = []
+    text_lower = text.lower()
+    
+    condition_patterns = [
+        # Spaceflight conditions
+        r'spaceflight\b|space\s+flight\b',
+        r'microgravity\b|μg\b|μ-g\b',
+        r'hypergravity\b|hyperg\b',
+        r'ground\s+control\b',
+        r'flight\s+(?:group|animals|samples)',
+        r'control\s+(?:group|animals|samples)',
+        r'vivarium\s+control',
+        r'habitat\s+control',
+        
+        # Radiation conditions
+        r'radiation\s+exposure\b',
+        r'cosmic\s+(?:radiation|rays?)',
+        r'galactic\s+cosmic\s+rays?',
+        r'solar\s+particle\s+events?',
+        r'proton\s+(?:radiation|exposure)',
+        r'gamma\s+(?:radiation|rays?)',
+        r'heavy\s+ion\s+(?:radiation|exposure)',
+        r'iron\s+ion\s+(?:radiation|exposure)',
+        
+        # Environmental conditions
+        r'simulated\s+(?:microgravity|spaceflight)',
+        r'clinostat\b|clinorotation\b',
+        r'random\s+positioning\s+machine',
+        r'hindlimb\s+(?:unloading|suspension)',
+        r'head-down\s+tilt\b',
+        r'bed\s+rest\b',
+        
+        # Duration terms
+        r'\d+\s+(?:days?|weeks?|months?)\s+(?:of|in|during)',
+        r'(?:short|long)-(?:term|duration)',
+        r'acute\s+exposure\b',
+        r'chronic\s+exposure\b'
+    ]
+    
+    for pattern in condition_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            condition = match.group().strip()
+            if condition and condition not in conditions:
+                conditions.append(condition)
+    
+    return conditions
+
+
+def _extract_measurements(text: str, doc: Optional[object] = None) -> List[str]:
+    """Extract measurement types and methodologies.""" 
+    measurements = []
+    text_lower = text.lower()
+    
+    measurement_patterns = [
+        # Gene expression measurements
+        r'gene\s+expression\b',
+        r'mRNA\s+(?:levels?|expression)',
+        r'RNA-seq\b|RNA\s+sequencing',
+        r'microarray\s+analysis',
+        r'qPCR\b|quantitative\s+PCR',
+        r'RT-PCR\b',
+        r'transcriptome\s+analysis',
+        
+        # Protein measurements
+        r'protein\s+(?:levels?|expression|content)',
+        r'proteomics?\b|proteomic\s+analysis',
+        r'mass\s+spectrometry',
+        r'western\s+blot(?:ting)?',
+        r'immunoblot(?:ting)?',
+        r'ELISA\b',
+        r'immunofluorescence\b',
+        
+        # Physiological measurements
+        r'bone\s+(?:density|mineral\s+density)',
+        r'(?:micro-?)?CT\s+(?:scan|analysis)',
+        r'DXA\s+scan\b|DEXA\b',
+        r'muscle\s+(?:mass|volume|cross-sectional\s+area)',
+        r'grip\s+strength\b',
+        r'(?:maximum|peak)\s+(?:force|torque)',
+        
+        # Cardiovascular measurements
+        r'heart\s+rate\b|HR\b',
+        r'blood\s+pressure\b|BP\b',
+        r'cardiac\s+output\b',
+        r'stroke\s+volume\b',
+        r'echocardiography\b',
+        r'ECG\b|electrocardiogram',
+        
+        # Blood/biochemical measurements
+        r'blood\s+(?:glucose|pressure|flow)',
+        r'serum\s+(?:levels?|biomarkers?)',
+        r'plasma\s+(?:levels?|concentration)',
+        r'biomarkers?\b',
+        r'hormones?\s+levels?',
+        
+        # Behavioral measurements
+        r'behavioral\s+(?:tests?|analysis)',
+        r'cognitive\s+(?:function|performance)',
+        r'motor\s+(?:function|activity)',
+        r'locomotor\s+activity\b'
+    ]
+    
+    for pattern in measurement_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            measurement = match.group().strip()
+            if measurement and measurement not in measurements:
+                measurements.append(measurement)
+    
+    return measurements
+
+
+def _extract_space_terms(text: str, doc: Optional[object] = None) -> List[str]:
+    """Extract space-specific terminology."""
+    space_terms = []
+    text_lower = text.lower()
+    
+    space_patterns = [
+        # Space vehicles and locations
+        r'\bISS\b|International\s+Space\s+Station',
+        r'space\s+shuttle\b',
+        r'SpaceX\b|Dragon\b',
+        r'Soyuz\b',
+        r'Mir\s+(?:space\s+)?station',
+        
+        # Space environments
+        r'microgravity\b|μg\b',
+        r'weightlessness\b',
+        r'zero\s+(?:gravity|g)',
+        r'space\s+environment',
+        r'orbital\s+(?:environment|flight)',
+        
+        # Mission terms
+        r'spaceflight\b|space\s+flight',
+        r'EVA\b|extravehicular\s+activity',
+        r'spacewalk\b|space\s+walk',
+        r'mission\s+duration',
+        r'expedition\s+\d+',
+        r'crew\s+(?:member|rotation)',
+        
+        # Planetary terms
+        r'\bMars\b|Martian\b',
+        r'\bMoon\b|lunar\b',
+        r'deep\s+space\b',
+        r'interplanetary\b',
+        
+        # Research platforms
+        r'Rodent\s+Research\b',
+        r'Advanced\s+Plant\s+Habitat',
+        r'Vegetable\s+Production\s+System',
+        r'Cell\s+Culture\s+Module'
+    ]
+    
+    for pattern in space_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            term = match.group().strip()
+            if term and term not in space_terms:
+                space_terms.append(term)
+    
+    return space_terms
+
+
+def _extract_mitigation_strategies(text: str, doc: Optional[object] = None) -> List[str]:
+    """Extract countermeasures and mitigation strategies."""
+    strategies = []
+    text_lower = text.lower()
+    
+    strategy_patterns = [
+        # Exercise countermeasures
+        r'exercise\s+(?:countermeasures?|protocols?|training)',
+        r'resistance\s+(?:training|exercise)',
+        r'aerobic\s+(?:training|exercise)',
+        r'treadmill\s+(?:exercise|training)',
+        r'cycle\s+ergometer\b',
+        r'ARED\b|Advanced\s+Resistive\s+Exercise\s+Device',
+        
+        # Nutritional interventions
+        r'nutritional\s+(?:supplements?|interventions?)',
+        r'dietary\s+(?:supplements?|modifications?)',
+        r'vitamin\s+D\s+(?:supplementation|therapy)',
+        r'calcium\s+(?:supplementation|intake)',
+        r'protein\s+(?:supplementation|intake)',
+        r'bisphosphonates?\b',
+        
+        # Pharmacological interventions
+        r'drug\s+(?:therapy|treatment|intervention)',
+        r'medication\b|pharmaceuticals?',
+        r'therapeutic\s+(?:agents?|interventions?)',
+        
+        # Physical interventions  
+        r'artificial\s+gravity\b',
+        r'centrifuge\s+(?:training|exposure)',
+        r'lower\s+body\s+negative\s+pressure',
+        r'compression\s+(?:garments?|suits?)',
+        
+        # Preventive measures
+        r'preventive\s+measures?',
+        r'countermeasures?\b',
+        r'mitigation\s+strategies?',
+        r'protective\s+(?:measures?|equipment)'
+    ]
+    
+    for pattern in strategy_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            strategy = match.group().strip()
+            if strategy and strategy not in strategies:
+                strategies.append(strategy)
+    
+    return strategies
+
+
+def _extract_space_locations(text: str) -> List[str]:
+    """Extract space-specific locations."""
+    locations = []
+    text_lower = text.lower()
+    
+    location_patterns = [
+        r'\bISS\b|International\s+Space\s+Station',
+        r'\bMars\b|Martian\s+(?:surface|environment)',
+        r'\bMoon\b|lunar\s+(?:surface|environment)', 
+        r'space\s+(?:station|environment|habitat)',
+        r'orbital\s+(?:laboratory|platform)',
+        r'deep\s+space\b',
+        r'low\s+Earth\s+orbit\b|LEO\b',
+        r'microgravity\s+environment'
+    ]
+    
+    for pattern in location_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            location = match.group().strip()
+            if location and location not in locations:
+                locations.append(location)
+    
+    return locations
+
+
+def _extract_space_organizations(text: str) -> List[str]:
+    """Extract space-related organizations."""
+    organizations = []
+    text_lower = text.lower()
+    
+    org_patterns = [
+        r'\bNASA\b',
+        r'\bESA\b|European\s+Space\s+Agency',
+        r'\bJAXA\b|Japan\s+Aerospace\s+Exploration\s+Agency',
+        r'SpaceX\b',
+        r'Blue\s+Origin\b',
+        r'Boeing\b',
+        r'Roscosmos\b',
+        r'CSA\b|Canadian\s+Space\s+Agency'
+    ]
+    
+    for pattern in org_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            org = match.group().strip()
+            if org and org not in organizations:
+                organizations.append(org)
+    
+    return organizations
+
+
+def _extract_causal_relations(text: str, doc: Optional[object] = None) -> List[Dict]:
+    """Extract causal relationships from text."""
+    relations = []
+    text_lower = text.lower()
+    
+    # Causal relationship patterns  
+    causal_patterns = [
+        (r'(.{1,50})\s+causes?\s+(.{1,50})', 'causes'),
+        (r'(.{1,50})\s+leads?\s+to\s+(.{1,50})', 'leads_to'),
+        (r'(.{1,50})\s+results?\s+in\s+(.{1,50})', 'results_in'),
+        (r'(.{1,50})\s+induces?\s+(.{1,50})', 'induces'),
+        (r'(.{1,50})\s+triggers?\s+(.{1,50})', 'triggers'),
+        (r'(.{1,50})\s+produces?\s+(.{1,50})', 'produces'),
+        (r'due\s+to\s+(.{1,50}),?\s*(.{1,50})', 'due_to'),
+        (r'(.{1,50})\s+is\s+caused\s+by\s+(.{1,50})', 'caused_by')
+    ]
+    
+    for pattern, relation_type in causal_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            try:
+                cause = match.group(1).strip()
+                effect = match.group(2).strip()
+                if cause and effect and len(cause) > 3 and len(effect) > 3:
+                    relations.append({
+                        'subject': cause,
+                        'relation': relation_type,
+                        'object': effect,
+                        'confidence': 0.8,
+                        'type': 'causal'
+                    })
+            except (IndexError, AttributeError):
+                continue
+    
+    return relations
+
+
+def _extract_experimental_relations(text: str, doc: Optional[object] = None) -> List[Dict]:
+    """Extract experimental comparison relationships."""
+    relations = []
+    text_lower = text.lower()
+    
+    experimental_patterns = [
+        (r'(.{1,50})\s+compared\s+to\s+(.{1,50})', 'compared_to'),
+        (r'(.{1,50})\s+versus\s+(.{1,50})', 'versus'),
+        (r'(.{1,50})\s+vs\.?\s+(.{1,50})', 'versus'),
+        (r'(.{1,50})\s+relative\s+to\s+(.{1,50})', 'relative_to'),
+        (r'(.{1,50})\s+in\s+contrast\s+to\s+(.{1,50})', 'contrasts_with'),
+        (r'(.{1,50})\s+differs?\s+from\s+(.{1,50})', 'differs_from'),
+        (r'(.{1,50})\s+(?:group|condition)\s+and\s+(.{1,50})\s+(?:group|condition)', 'experimental_groups')
+    ]
+    
+    for pattern, relation_type in experimental_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            try:
+                entity1 = match.group(1).strip()
+                entity2 = match.group(2).strip()
+                if entity1 and entity2 and len(entity1) > 3 and len(entity2) > 3:
+                    relations.append({
+                        'subject': entity1,
+                        'relation': relation_type,
+                        'object': entity2,
+                        'confidence': 0.7,
+                        'type': 'experimental'
+                    })
+            except (IndexError, AttributeError):
+                continue
+    
+    return relations
+
+
+def _extract_temporal_relations(text: str, doc: Optional[object] = None) -> List[Dict]:
+    """Extract temporal relationships."""
+    relations = []
+    text_lower = text.lower()
+    
+    temporal_patterns = [
+        (r'during\s+(.{1,50}),?\s*(.{1,50})', 'during'),
+        (r'after\s+(.{1,50}),?\s*(.{1,50})', 'after'),  
+        (r'before\s+(.{1,50}),?\s*(.{1,50})', 'before'),
+        (r'following\s+(.{1,50}),?\s*(.{1,50})', 'following'),
+        (r'prior\s+to\s+(.{1,50}),?\s*(.{1,50})', 'prior_to'),
+        (r'at\s+(\d+\s+(?:days?|weeks?|months?)),?\s*(.{1,50})', 'at_timepoint'),
+        (r'(\w+)\s+occurs?\s+during\s+(.{1,50})', 'occurs_during')
+    ]
+    
+    for pattern, relation_type in temporal_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            try:
+                time_ref = match.group(1).strip()
+                event = match.group(2).strip()
+                if time_ref and event and len(time_ref) > 2 and len(event) > 3:
+                    relations.append({
+                        'subject': event,
+                        'relation': relation_type,
+                        'object': time_ref,
+                        'confidence': 0.6,
+                        'type': 'temporal'
+                    })
+            except (IndexError, AttributeError):
+                continue
+    
+    return relations
+
+
+def _extract_location_relations(text: str, doc: Optional[object] = None) -> List[Dict]:
+    """Extract location-based relationships."""
+    relations = []
+    text_lower = text.lower()
+    
+    location_patterns = [
+        (r'(.{1,50})\s+in\s+space\b', 'in_space'),
+        (r'(.{1,50})\s+on\s+(?:the\s+)?ISS\b', 'on_ISS'),
+        (r'(.{1,50})\s+during\s+(?:space)?flight\b', 'during_flight'), 
+        (r'(.{1,50})\s+in\s+microgravity\b', 'in_microgravity'),
+        (r'(.{1,50})\s+on\s+(?:the\s+)?(?:space\s+)?station\b', 'on_station'),
+        (r'(.{1,50})\s+in\s+orbit\b', 'in_orbit'),
+        (r'(.{1,50})\s+aboard\s+(.{1,50})', 'aboard'),
+        (r'(.{1,50})\s+on\s+Mars\b', 'on_Mars')
+    ]
+    
+    for pattern, relation_type in location_patterns:
+        matches = re.finditer(pattern, text_lower)
+        for match in matches:
+            try:
+                if relation_type == 'aboard':
+                    entity = match.group(1).strip()
+                    location = match.group(2).strip()
+                else:
+                    entity = match.group(1).strip()
+                    location = relation_type.replace('_', ' ')
+                    
+                if entity and len(entity) > 3:
+                    relations.append({
+                        'subject': entity,
+                        'relation': relation_type,
+                        'object': location,
+                        'confidence': 0.7,
+                        'type': 'location'
+                    })
+            except (IndexError, AttributeError):
+                continue
+    
+    return relations
+
+
+def _enhanced_fallback_extraction(text: str) -> Dict:
+    """Enhanced fallback entity extraction when spaCy is unavailable."""
+    result = {
+        'entities': [], 'impacts': [], 'locations': [], 'organizations': [],
+        'organisms': [], 'experimental_conditions': [], 'measurements': [],
+        'space_terms': [], 'causal_relations': [], 'experimental_relations': [],
+        'temporal_relations': [], 'location_relations': [], 'mitigation_strategies': []
+    }
+    
+    # Use all the new extraction functions
+    result['impacts'] = _extract_enhanced_health_impacts(text)
+    result['organisms'] = _extract_organisms(text)
+    result['experimental_conditions'] = _extract_experimental_conditions(text)
+    result['measurements'] = _extract_measurements(text)
+    result['space_terms'] = _extract_space_terms(text)
+    result['mitigation_strategies'] = _extract_mitigation_strategies(text)
+    result['locations'] = _extract_space_locations(text)
+    result['organizations'] = _extract_space_organizations(text)
+    
+    # Relationships
+    result['causal_relations'] = _extract_causal_relations(text)
+    result['experimental_relations'] = _extract_experimental_relations(text)
+    result['temporal_relations'] = _extract_temporal_relations(text)
+    result['location_relations'] = _extract_location_relations(text)
+    
+    # Combine into entities list
+    for category in ['organisms', 'space_terms', 'measurements']:
+        for item in result[category]:
+            result['entities'].append((item, category.upper()))
+    
+    return result
 
 
 def _extract_custom_relations(doc: object) -> List[Dict]:
@@ -335,7 +877,7 @@ def _fallback_entity_extraction(text: str) -> Dict:
             result['locations'].append(entity_text)
     
     # Extract health impacts using the same function
-    result['impacts'] = _extract_health_impacts(text)
+    result['impacts'] = _extract_enhanced_health_impacts(text)
     
     return result
 
@@ -571,30 +1113,62 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
                               confidence=0.6)
                 
                 # Simple causal relationship detection using 'causes' keyword
-                text_lower = text_content.lower()
-                sentences = text_content.split('.')
+                try:
+                    text_lower = text_content.lower()
+                    sentences = [s.strip() for s in text_content.split('.') if s.strip()]
+                except (AttributeError, TypeError) as e:
+                    log_error(f"Error processing text for causal analysis: {str(e)}")
+                    sentences = []
                 
                 for sentence in sentences:
-                    sentence_lower = sentence.lower().strip()
-                    if 'causes' in sentence_lower:
-                        # Extract simple cause-effect relationships
-                        cause_effect = _extract_simple_causes(sentence, entities)
-                        for cause, effect in cause_effect:
-                            cause_node = f"Entity:{cause}"
-                            effect_node = f"Entity:{effect}"
+                    try:
+                        if not sentence or not isinstance(sentence, str):
+                            continue
                             
-                            # Add cause and effect nodes if not already present
-                            if not G.has_node(cause_node):
-                                G.add_node(cause_node, type='entity', name=cause)
-                            if not G.has_node(effect_node):
-                                G.add_node(effect_node, type='entity', name=effect)
-                            
-                            # Add causal edge
-                            G.add_edge(cause_node, effect_node, 
-                                      relation='causes',
-                                      confidence=0.9,
-                                      source_experiment=exp_id,
-                                      evidence=sentence.strip()[:100])
+                        sentence_lower = sentence.lower().strip()
+                        if len(sentence_lower) > 0 and 'causes' in sentence_lower:
+                            # Extract simple cause-effect relationships with error handling
+                            try:
+                                cause_effect = _extract_simple_causes(sentence, entities)
+                                if not isinstance(cause_effect, list):
+                                    continue
+                            except Exception as e:
+                                log_error(f"Error extracting causes from sentence: {str(e)}")
+                                continue
+                                
+                            for cause_effect_pair in cause_effect:
+                                try:
+                                    if not isinstance(cause_effect_pair, (tuple, list)) or len(cause_effect_pair) != 2:
+                                        continue
+                                    cause, effect = cause_effect_pair
+                                    
+                                    if not cause or not effect:  # Skip if either is empty
+                                        continue
+                                        
+                                    cause_node = f"Entity:{str(cause).strip()}"
+                                    effect_node = f"Entity:{str(effect).strip()}"
+                                    
+                                    # Add cause and effect nodes if not already present
+                                    if not G.has_node(cause_node):
+                                        G.add_node(cause_node, type='entity', name=str(cause).strip())
+                                    if not G.has_node(effect_node):
+                                        G.add_node(effect_node, type='entity', name=str(effect).strip())
+                                    
+                                    # Add causal edge with safe string handling
+                                    evidence_text = str(sentence).strip()[:100] if sentence else ""
+                                    G.add_edge(cause_node, effect_node, 
+                                              relation='causes',
+                                              confidence=0.9,
+                                              source_experiment=exp_id,
+                                              evidence=evidence_text)
+                                              
+                                except (ValueError, TypeError, Exception) as e:
+                                    log_error(f"Error adding causal relationship: {str(e)}")
+                                    continue
+                                    
+                    except Exception as e:
+                        log_error(f"Error processing sentence for causal relationships: {str(e)}")
+                        continue
         
         # Serialize graph to pickle file
         output_file = 'data/graph.pkl'
@@ -824,8 +1398,8 @@ def query_kg(G: object, keyword: str) -> Dict:
                         matching_nodes.append(node)
                         break
         
-        # Handle no matches case
-        if not matching_nodes:
+        # Handle no matches case - use len() to avoid array comparison issues
+        if len(matching_nodes) == 0:
             log_info(f"No nodes found matching keyword: '{keyword}'")
             return {
                 'matches': [],

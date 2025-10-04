@@ -1,87 +1,205 @@
 [
   {
-    "title": "Microgravity Effects on Bone Density in Rodent Models",
-    "abstract": "Bone loss in space environments represents a critical challenge for long-duration spaceflight. This study examines the effects of microgravity on bone mineral density in laboratory mice over a 30-day period. Results indicate significant decreases in trabecular bone volume and cortical thickness, with implications for astronaut health during extended missions to Mars and beyond.",
-    "experiment_id": "GLDS-101",
-    "impacts": ["bone loss", "microgravity", "skeletal system", "astronaut health"],
+    "title": "Microgravity-Induced Osteoblast Dysfunction and Bone Mineral Density Loss",
+    "abstract": "Microgravity exposure during spaceflight causes significant bone loss, posing major health risks for astronauts on long-duration missions. This study investigated the molecular mechanisms of bone loss using mouse hindlimb unloading as a ground-based analog of microgravity. Male C57BL/6 mice (n=24) were subjected to 14 days of hindlimb suspension, with controls maintained under normal loading conditions. Micro-computed tomography analysis revealed a 23% decrease in trabecular bone volume fraction and 15% reduction in cortical thickness in unloaded limbs. RNA sequencing of femoral bone tissue identified 1,247 differentially expressed genes, with significant downregulation of osteoblast markers including RUNX2, COL1A1, and BGLAP. Pathway analysis revealed suppression of Wnt signaling and activation of NF-κB inflammatory pathways. Quantitative proteomics confirmed reduced expression of bone matrix proteins including osteocalcin and osteopontin. These findings demonstrate that microgravity rapidly activates catabolic bone remodeling while suppressing anabolic processes. The identification of specific molecular targets provides potential therapeutic strategies for bone loss countermeasures in spaceflight.",
+    "experiment_id": "GLDS-001",
+    "impacts": ["bone loss", "microgravity", "osteoblast dysfunction", "skeletal deconditioning", "spaceflight countermeasures"],
     "metadata": {
       "source": "sample_data",
       "organism": "Mus musculus",
       "experiment_type": "Transcriptome Analysis",
       "platform": "RNA-Seq",
-      "factors": ["microgravity", "spaceflight duration"],
-      "mission": "SpaceX CRS-8",
-      "publication_date": "2023-06-15",
-      "doi": "10.1038/sample-bone-2023",
-      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-101"
+      "factors": ["microgravity simulation", "hindlimb unloading", "bone remodeling"],
+      "mission": "Ground-based analog",
+      "publication_date": "2023-01-15",
+      "doi": "10.1038/s41526-023-0001-x",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-001"
     }
   },
   {
-    "title": "Radiation Exposure Impact on Plant Growth in Space Conditions",
-    "abstract": "Space radiation poses significant challenges to biological systems during interplanetary travel. This investigation studies the effects of galactic cosmic radiation on Arabidopsis thaliana seedlings grown in simulated space conditions. Findings reveal altered gene expression patterns in DNA repair pathways and oxidative stress responses, providing insights for future deep space missions.",
-    "experiment_id": "GLDS-242",
-    "impacts": ["radiation damage", "plant biology", "DNA repair", "oxidative stress"],
-    "metadata": {
-      "source": "sample_data",
-      "organism": "Arabidopsis thaliana",
-      "experiment_type": "Gene Expression",
-      "platform": "Microarray",
-      "factors": ["cosmic radiation", "simulated microgravity"],
-      "mission": "ISS Expedition 58",
-      "publication_date": "2023-09-22",
-      "doi": "10.1126/sample-plant-2023",
-      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-242"
-    }
-  },
-  {
-    "title": "Muscle Atrophy Mechanisms During Extended Spaceflight",
-    "abstract": "Muscle atrophy represents one of the most significant physiological challenges facing astronauts during long-duration missions. This comprehensive study analyzes molecular mechanisms underlying muscle wasting in space through proteomics analysis of tissue samples from space-flown rodents. Results identify key pathways involved in protein degradation and provide targets for countermeasure development.",
-    "experiment_id": "GLDS-173",
-    "impacts": ["muscle atrophy", "protein degradation", "spaceflight countermeasures", "astronaut fitness"],
-    "metadata": {
-      "source": "sample_data",
-      "organism": "Rattus norvegicus",
-      "experiment_type": "Proteomics",
-      "platform": "Mass Spectrometry",
-      "factors": ["microgravity", "muscle loading", "exercise countermeasures"],
-      "mission": "SpaceX CRS-12",
-      "publication_date": "2023-11-08",
-      "doi": "10.1016/sample-muscle-2023",
-      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-173"
-    }
-  },
-  {
-    "title": "Cardiovascular Adaptation to Microgravity Environment",
-    "abstract": "Cardiovascular deconditioning during spaceflight poses risks for crew health and mission success. This study investigates cardiac function and vascular changes in mice exposed to microgravity conditions for 35 days aboard the International Space Station. Findings demonstrate significant alterations in heart muscle gene expression and vascular reactivity, informing development of exercise protocols for future missions.",
-    "experiment_id": "GLDS-195",
-    "impacts": ["cardiovascular health", "heart function", "vascular changes", "crew medical protocols"],
+    "title": "Skeletal Muscle Atrophy and Myofiber Type Transitions in Space-Flown Mice",
+    "abstract": "Skeletal muscle atrophy is a primary concern for crew health during long-duration spaceflight missions. This investigation examined muscle fiber adaptations in mice flown aboard the International Space Station for 37 days during SpaceX CRS-18. Adult male C57BL/6J mice (n=40) were housed in the rodent habitat and compared to ground controls and habitat controls. Upon return, soleus and gastrocnemius muscles were harvested for histological and molecular analysis. Muscle mass decreased by 18% in flight animals, with soleus showing greater atrophy (22%) than gastrocnemius (14%). Histomorphometric analysis revealed significant reductions in type I and type IIa fiber cross-sectional areas, with a shift toward fast-twitch type IIx fibers. Transcriptomic profiling identified upregulation of ubiquitin-proteasome system genes including FBXO32 (atrogin-1) and TRIM63 (MuRF1), indicating enhanced protein degradation. Conversely, protein synthesis pathways including mTOR signaling were significantly downregulated. Immunofluorescence staining confirmed increased expression of autophagy markers LC3 and SQSTM1. These results demonstrate that spaceflight induces rapid skeletal muscle catabolism through multiple degradative pathways while suppressing anabolic processes, providing molecular targets for exercise countermeasure optimization.",
+    "experiment_id": "GLDS-002",
+    "impacts": ["muscle atrophy", "fiber type transition", "protein degradation", "spaceflight adaptation", "exercise countermeasures"],
     "metadata": {
       "source": "sample_data",
       "organism": "Mus musculus",
       "experiment_type": "Multi-omics",
-      "platform": "RNA-Seq + Proteomics",
-      "factors": ["microgravity", "cardiovascular system", "ISS environment"],
-      "mission": "ISS Expedition 61",
-      "publication_date": "2023-07-30",
-      "doi": "10.1038/sample-cardio-2023",
-      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-195"
+      "platform": "RNA-Seq + Proteomics + Histology",
+      "factors": ["spaceflight", "microgravity", "muscle unloading"],
+      "mission": "SpaceX CRS-18",
+      "publication_date": "2023-02-28",
+      "doi": "10.1152/japplphysiol.2023.0002",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-002"
     }
   },
   {
-    "title": "Immune System Dysfunction in Simulated Mars Mission Conditions",
-    "abstract": "Long-duration space missions to Mars will expose crew members to unique stressors including radiation, isolation, and microgravity that may compromise immune function. This ground-based analog study examines immune cell responses in human subjects during a 365-day Mars simulation. Results show suppressed T-cell function and altered cytokine production, highlighting the need for immune system monitoring and countermeasures during deep space exploration.",
-    "experiment_id": "GLDS-321",
-    "impacts": ["immune suppression", "Mars mission", "crew health monitoring", "deep space exploration"],
+    "title": "Trabecular Bone Microarchitecture Degradation Under Simulated Martian Gravity",
+    "abstract": "Future missions to Mars will expose astronauts to reduced gravity (38% Earth gravity) for extended periods, potentially causing bone loss different from microgravity effects. This study utilized a novel partial gravity simulation system to investigate bone microarchitectural changes in growing rats exposed to Martian gravity conditions. Young male Sprague-Dawley rats (n=32) were subjected to 0.38G loading for 28 days using a custom harness system, with 1G controls. High-resolution micro-CT scanning revealed significant deterioration in trabecular bone microarchitecture, including 19% reduction in bone volume fraction, 12% decrease in trabecular thickness, and 25% increase in trabecular separation. Mechanical testing showed 31% reduction in ultimate compressive strength. Serum biomarkers indicated increased bone resorption (elevated CTX-I) and suppressed bone formation (reduced P1NP). Gene expression analysis of femoral metaphyseal bone identified dysregulation of mechanosensitive genes including SOST (sclerostin) upregulation and IGF1 downregulation. Histomorphometric analysis confirmed reduced osteoblast surface and increased osteoclast numbers. These findings suggest that even partial gravity reduction significantly compromises bone health, indicating that Mars missions will require robust bone health countermeasures beyond those developed for microgravity environments.",
+    "experiment_id": "GLDS-003",
+    "impacts": ["partial gravity", "trabecular bone", "Mars mission", "bone microarchitecture", "planetary exploration"],
+    "metadata": {
+      "source": "sample_data",
+      "organism": "Rattus norvegicus",
+      "experiment_type": "Bone Analysis",
+      "platform": "Micro-CT + qPCR",
+      "factors": ["reduced gravity", "Martian gravity simulation", "bone mechanics"],
+      "mission": "Ground-based Mars analog",
+      "publication_date": "2023-03-10",
+      "doi": "10.1007/s00774-023-0003-y",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-003"
+    }
+  },
+  {
+    "title": "Myocardial Gene Expression Changes During Long-Duration Spaceflight",
+    "abstract": "Cardiovascular deconditioning represents a significant health risk during spaceflight, particularly for long-duration missions to Mars. This investigation examined cardiac molecular adaptations in mice during a 91-day mission aboard the International Space Station. Adult female C57BL/6 mice (n=20) were housed in the Advanced Animal Habitat and compared to ground controls. Upon return, left ventricular tissue was collected for comprehensive transcriptomic analysis. RNA sequencing identified 2,156 differentially expressed genes in space-flown hearts, with significant enrichment in pathways related to cardiac contraction, calcium signaling, and metabolic remodeling. Key findings included downregulation of contractile proteins including MYH6 (α-myosin heavy chain) and upregulation of stress response genes such as NPPA (atrial natriuretic peptide). Pathway analysis revealed suppression of fatty acid oxidation and enhanced glycolytic metabolism. Real-time PCR validation confirmed altered expression of calcium handling genes including SERCA2 and phospholamban. Echocardiographic analysis of live animals showed reduced ejection fraction and increased left ventricular chamber dimensions. These molecular changes reflect cardiac remodeling similar to that observed in heart failure, suggesting that prolonged microgravity exposure induces pathological cardiac adaptations that could compromise crew health during Mars transit and surface operations.",
+    "experiment_id": "GLDS-004",
+    "impacts": ["cardiac deconditioning", "heart failure", "cardiovascular adaptation", "long-duration spaceflight", "crew health"],
+    "metadata": {
+      "source": "sample_data",
+      "organism": "Mus musculus",
+      "experiment_type": "Cardiovascular Analysis",
+      "platform": "RNA-Seq + Echocardiography",
+      "factors": ["long-duration spaceflight", "cardiac function", "microgravity"],
+      "mission": "ISS Expedition 62/63",
+      "publication_date": "2023-04-22",
+      "doi": "10.1161/CIRCRESAHA.2023.0004",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-004"
+    }
+  },
+  {
+    "title": "Radiation-Induced DNA Damage Response in Human Lymphocytes During Solar Particle Events",
+    "abstract": "Solar particle events (SPEs) pose acute radiation risks to astronauts during extravehicular activities and transit outside Earth's magnetosphere. This study investigated DNA damage responses in human lymphocytes exposed to simulated SPE radiation conditions using proton beam irradiation. Primary lymphocytes from healthy donors (n=12) were exposed to 50-200 MeV protons at doses of 0.1-2.0 Gy, mimicking SPE exposure scenarios. DNA double-strand breaks were quantified using γ-H2AX immunofluorescence, revealing dose-dependent increases in foci formation within 30 minutes post-irradiation. Transcriptomic analysis at 2, 6, and 24 hours identified activation of DNA damage response pathways including p53 signaling, homologous recombination, and non-homologous end joining. Key upregulated genes included TP53, ATM, BRCA1, and RAD51. Flow cytometry analysis showed cell cycle arrest in G1/S and G2/M phases, with increased apoptosis at higher doses. Comet assays confirmed persistent DNA damage at 24 hours, particularly at doses >1 Gy. Proteomic analysis revealed enhanced expression of DNA repair proteins including 53BP1 and MDC1. These findings demonstrate that SPE-like radiation exposure induces significant DNA damage that persists beyond initial repair responses, highlighting the need for enhanced radiation protection protocols for deep space missions where astronauts cannot shelter from SPEs.",
+    "experiment_id": "GLDS-005",
+    "impacts": ["solar particle events", "DNA damage", "radiation exposure", "astronaut safety", "deep space missions"],
     "metadata": {
       "source": "sample_data",
       "organism": "Homo sapiens",
-      "experiment_type": "Immunology",
-      "platform": "Flow Cytometry + ELISA",
-      "factors": ["isolation", "stress", "confined environment", "radiation simulation"],
-      "mission": "Mars-500 Analog",
-      "publication_date": "2023-12-15",
-      "doi": "10.1172/sample-immune-2023",
-      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-321"
+      "experiment_type": "Radiation Biology",
+      "platform": "Flow Cytometry + Proteomics",
+      "factors": ["proton radiation", "DNA repair", "cell cycle"],
+      "mission": "Ground-based radiation study",
+      "publication_date": "2023-05-14",
+      "doi": "10.1667/RADE-23-0005.1",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-005"
     }
-  }
-]
+  },
+  {
+    "title": "Galactic Cosmic Ray Effects on Neural Stem Cell Proliferation and Differentiation",
+    "abstract": "Galactic cosmic rays (GCR) represent a persistent radiation hazard during interplanetary travel, with potential impacts on central nervous system function. This investigation examined the effects of simulated GCR exposure on neural stem cell biology using the NASA Space Radiation Laboratory. Adult hippocampal neural stem cells were isolated from C57BL/6 mice and exposed to a mixed-field GCR simulation (0.1-1.0 Gy) consisting of protons, helium, carbon, oxygen, and iron ions matching the deep space radiation environment. Cell proliferation assays using BrdU incorporation showed dose-dependent reductions in stem cell division rates, with 50% inhibition at 0.5 Gy. Neurosphere formation assays revealed impaired self-renewal capacity and reduced sphere size. Differentiation studies demonstrated altered fate specification, with decreased neurogenesis (reduced DCX+ cells) and enhanced astrogliogenesis (increased GFAP+ cells). Transcriptomic profiling identified dysregulation of neurogenesis pathways including Notch and Wnt signaling. Specifically, reduced expression of neuronal differentiation genes NEUROD1 and TBR2, and increased expression of astroglial markers S100B and ALDH1L1 were observed. Behavioral testing of irradiated animals showed impaired spatial memory in the Morris water maze and reduced novel object recognition. These results indicate that GCR exposure compromises adult neurogenesis and cognitive function, necessitating radiation shielding strategies for Mars missions.",
+    "experiment_id": "GLDS-006",
+    "impacts": ["galactic cosmic rays", "neurogenesis", "cognitive impairment", "neural stem cells", "radiation shielding"],
+    "metadata": {
+      "source": "sample_data",
+      "organism": "Mus musculus",
+      "experiment_type": "Neurobiology",
+      "platform": "RNA-Seq + Behavioral Analysis",
+      "factors": ["cosmic radiation", "neurogenesis", "cognitive function"],
+      "mission": "NASA Space Radiation Laboratory",
+      "publication_date": "2023-06-08",
+      "doi": "10.1523/JNEUROSCI.2023-0006",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-006"
+    }
+  },
+  {
+    "title": "Iron Ion Radiation Impact on Hematopoietic Stem Cell Function and Leukemia Risk",
+    "abstract": "High-energy iron ions represent a major component of galactic cosmic radiation and pose significant health risks including potential cancer induction during Mars missions. This study investigated the long-term effects of iron ion (⁵⁶Fe) irradiation on hematopoietic stem cells (HSCs) using the NASA Space Radiation Laboratory beamline. Young adult C57BL/6 mice received whole-body exposure to 0.2 or 1.0 Gy of 1 GeV/nucleon iron ions, with follow-up analysis at 2, 6, and 12 months post-irradiation. Flow cytometric analysis of bone marrow revealed persistent reductions in HSC frequency (Lin⁻Sca1⁺Kit⁺CD150⁺CD48⁻ cells) and functional capacity assessed by competitive repopulation assays. Colony-forming unit assays showed impaired multilineage differentiation potential. Whole genome sequencing of isolated HSCs identified increased mutation burden, particularly in DNA damage response genes including TP53, ATM, and BRCA2. Single-cell RNA sequencing revealed altered transcriptional programs with upregulation of senescence markers p16 and p21, and dysregulation of hematopoietic transcription factors including GATA2 and RUNX1. Long-term monitoring revealed increased incidence of myeloid malignancies (15% vs 2% in controls) and shortened lifespan. Mechanistic studies showed persistent DNA damage signaling and chronic inflammation in the bone marrow microenvironment. These findings demonstrate that iron ion radiation induces lasting damage to the hematopoietic system, elevating cancer risk and highlighting the need for radiation protection strategies for deep space exploration.",
+    "experiment_id": "GLDS-007",
+    "impacts": ["iron ion radiation", "hematopoietic stem cells", "leukemia risk", "DNA mutations", "cancer induction"],
+    "metadata": {
+      "source": "sample_data",
+      "organism": "Mus musculus",
+      "experiment_type": "Cancer Biology",
+      "platform": "Single-cell RNA-Seq + Flow Cytometry",
+      "factors": ["heavy ion radiation", "stem cell function", "cancer risk"],
+      "mission": "NASA Space Radiation Laboratory",
+      "publication_date": "2023-07-19",
+      "doi": "10.1158/0008-5472.CAN-23-0007",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-007"
+    }
+  },
+  {
+    "title": "Microgravity Effects on Osteocyte Mechanosensing and Bone Remodeling Signaling",
+    "abstract": "Osteocytes serve as the primary mechanosensors in bone tissue, detecting mechanical loading and orchestrating bone remodeling responses. Microgravity-induced bone loss likely involves disruption of osteocyte mechanotransduction pathways. This investigation utilized the rotating wall vessel bioreactor to simulate microgravity effects on MLO-Y4 osteocyte-like cells and primary osteocytes isolated from mouse long bones. Cells were cultured under simulated microgravity for 72 hours and compared to static 1G controls. Real-time PCR analysis revealed significant upregulation of SOST (sclerostin) mRNA expression (4.2-fold increase), the primary osteocyte-derived inhibitor of bone formation. Conversely, expression of bone formation stimulators including WNT1 and LRP5 was significantly decreased. Protein analysis confirmed increased sclerostin secretion and reduced Wnt signaling activity measured by β-catenin nuclear translocation. Calcium imaging studies showed impaired mechanically-induced calcium responses to fluid flow stimulation. Electron microscopy revealed disruption of the osteocyte lacuno-canalicular network and reduced dendritic processes. Co-culture experiments with osteoblasts demonstrated that conditioned media from microgravity-exposed osteocytes significantly inhibited osteoblast mineralization and alkaline phosphatase activity. These results indicate that microgravity directly impairs osteocyte mechanosensing function, leading to increased sclerostin production and suppression of bone formation, providing mechanistic insights into spaceflight-induced bone loss.",
+    "experiment_id": "GLDS-008",
+    "impacts": ["osteocyte mechanosensing", "sclerostin", "Wnt signaling", "bone formation", "mechanotransduction"],
+    "metadata": {
+      "source": "sample_data",
+      "organism": "Mus musculus",
+      "experiment_type": "Cell Biology",
+      "platform": "qPCR + Microscopy",
+      "factors": ["simulated microgravity", "mechanosensing", "cell culture"],
+      "mission": "Ground-based cell culture study",
+      "publication_date": "2023-08-03",
+      "doi": "10.1359/jbmr.2023.0008",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-008"
+    }
+  },
+  {
+    "title": "Sarcopenia Development and Myosin Heavy Chain Isoform Switching in Aged Mice During Spaceflight",
+    "abstract": "Age-related sarcopenia may be exacerbated by microgravity exposure, potentially impacting older astronauts on long-duration missions. This study investigated muscle adaptations in aged mice (18 months) flown on the International Space Station for 35 days during the Rodent Research-3 mission. Aged male C57BL/6 mice (n=20) were compared to young adult controls (4 months) and ground controls of both ages. Post-flight analysis revealed more severe muscle atrophy in aged space-flown mice compared to young animals, with 28% vs 18% reduction in gastrocnemius mass respectively. Histological analysis showed disproportionate loss of type II (fast-twitch) muscle fibers in aged animals, with 35% reduction in fiber cross-sectional area. Molecular analysis revealed distinct myosin heavy chain (MyHC) isoform switching patterns, with aged space-flown mice showing increased expression of MyHC-IIx (fast glycolytic) at the expense of MyHC-IIa (fast oxidative). Proteomic analysis identified enhanced protein degradation through the ubiquitin-proteasome system, with elevated expression of muscle-specific E3 ligases Atrogin-1 and MuRF-1. Mitochondrial biogenesis markers PGC-1α and TFAM were significantly downregulated in aged space-flown animals. Functional testing revealed greater decrements in grip strength and rotarod performance in aged vs young space-flown mice. These findings suggest that aging exacerbates spaceflight-induced sarcopenia through enhanced protein catabolism and mitochondrial dysfunction, indicating need for age-specific countermeasures.",
+    "experiment_id": "GLDS-009",
+    "impacts": ["sarcopenia", "aging", "myosin isoforms", "protein degradation", "mitochondrial dysfunction"],
+    "metadata": {
+      "source": "sample_data",
+      "organism": "Mus musculus",
+      "experiment_type": "Aging Biology",
+      "platform": "Proteomics + Histology",
+      "factors": ["aging", "spaceflight", "muscle function"],
+      "mission": "ISS Rodent Research-3",
+      "publication_date": "2023-09-15",
+      "doi": "10.1111/acel.2023.0009",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-009"
+    }
+  },
+  {
+    "title": "Calcium Metabolism Disruption and Renal Stone Formation Risk in Spaceflight",
+    "abstract": "Altered calcium homeostasis during spaceflight increases astronaut risk for kidney stone formation, a potentially mission-threatening medical emergency. This investigation examined calcium metabolism and renal stone formation in rats during 14-day spaceflight aboard Space Shuttle missions. Male Sprague-Dawley rats (n=24) were flown in specialized cages with 24-hour urine collection capabilities, compared to flight hardware and vivarium controls. Post-flight analysis revealed significant hypercalciuria (150% increase in urinary calcium excretion) accompanied by elevated urinary oxalate and reduced citrate excretion. Serum analysis showed increased parathyroid hormone levels and reduced calcitriol (active vitamin D) concentrations. Renal gene expression analysis identified upregulation of calcium transport genes including TRPV5 and NCX1, suggesting compensatory mechanisms. Microscopic examination of kidney tissue revealed calcium oxalate crystal deposits in 40% of flight animals vs 5% of controls. Dual-energy X-ray absorptiometry confirmed significant bone mineral loss correlating with urinary calcium excretion. Metabolomic analysis of urine samples identified altered purine metabolism and reduced antioxidant capacity. Mathematical modeling using supersaturation calculations predicted 3.2-fold increased risk of calcium oxalate stone formation. Pharmacological intervention with potassium citrate supplementation partially ameliorated hypercalciuria and crystal formation. These results demonstrate that spaceflight-induced bone loss directly contributes to renal stone formation risk, warranting preventive strategies including dietary modifications and pharmaceutical countermeasures.",
+    "experiment_id": "GLDS-010",
+    "impacts": ["calcium metabolism", "kidney stones", "bone mineral loss", "hypercalciuria", "renal function"],
+    "metadata": {
+      "source": "sample_data",
+      "organism": "Rattus norvegicus",
+      "experiment_type": "Metabolism",
+      "platform": "Metabolomics + Biochemistry",
+      "factors": ["calcium homeostasis", "renal function", "metabolic adaptation"],
+      "mission": "Space Shuttle STS-90",
+      "publication_date": "2023-10-27",
+      "doi": "10.1152/ajprenal.2023.0010",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-010"
+    }
+  },
+  {
+    "title": "Arabidopsis Root Gravitropism and Cell Wall Modifications in Microgravity",
+    "abstract": "Gravitropism is fundamental to plant growth and development, allowing roots to grow downward and shoots upward in response to gravity. Understanding how microgravity affects plant gravitropic responses is crucial for developing life support systems for long-duration space missions. This experiment examined gravitropic responses and cell wall modifications in Arabidopsis thaliana seedlings grown on the International Space Station for 14 days. Seeds of the Columbia ecotype were germinated and grown in specialized plant growth chambers with LED lighting and controlled atmosphere. Time-lapse imaging revealed complete loss of gravitropic curvature in space-grown roots, which grew in random orientations rather than the characteristic downward growth observed in ground controls. Transmission electron microscopy of root tip cells showed altered amyloplast distribution in columella cells, which serve as gravity-sensing organelles (statoliths). Cell wall analysis using immunofluorescence labeling revealed significant changes in pectin methylesterification patterns and cellulose microfiber orientation. Gene expression analysis identified dysregulation of gravitropism-related genes including PIN auxin transporters and AUX/IAA transcriptional regulators. Specifically, PIN1, PIN2, and PIN3 showed altered expression patterns affecting auxin distribution. Biochemical analysis revealed modified cell wall composition with increased pectin content and altered lignification. Upon return to Earth, space-grown seedlings required 6-8 hours to re-establish normal gravitropic responses, compared to immediate responses in controls. These findings demonstrate that microgravity fundamentally alters plant gravitropic machinery through effects on statolith function and auxin transport.",
+    "experiment_id": "GLDS-011",
+    "impacts": ["gravitropism", "plant development", "cell wall modification", "auxin transport", "space agriculture"],
+    "metadata": {
+      "source": "sample_data",
+      "organism": "Arabidopsis thaliana",
+      "experiment_type": "Plant Biology",
+      "platform": "Microscopy + Gene Expression",
+      "factors": ["microgravity", "plant growth", "gravitropic response"],
+      "mission": "ISS Expedition 45",
+      "publication_date": "2023-11-09",
+      "doi": "10.1104/pp.23.0011",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-011"
+    }
+  },
+  {
+    "title": "Spaceflight-Induced Changes in Plant Circadian Rhythms and Photosynthetic Efficiency",
+    "abstract": "Circadian rhythms coordinate plant physiological processes with environmental cycles and are crucial for optimal growth and development. The absence of natural day/night cycles in space may disrupt plant circadian clocks, affecting photosynthetic efficiency and biomass production critical for bioregenerative life support systems. This investigation examined circadian rhythm disruption in Arabidopsis thaliana during 28-day growth on the International Space Station. Plants were grown under controlled LED lighting with 16:8 hour light:dark cycles and monitored using real-time bioluminescence reporters for key clock genes. Circadian analysis revealed significant period lengthening (25.2 ± 0.8 hours vs 24.1 ± 0.3 hours in ground controls) and reduced amplitude of clock gene oscillations including CCA1, LHY, and TOC1. Photosynthetic measurements using chlorophyll fluorescence showed reduced maximum quantum efficiency (Fv/Fm) and decreased CO₂ assimilation rates during the light period. Metabolomic profiling identified disrupted sugar metabolism with altered sucrose and starch accumulation patterns. Gene expression analysis revealed dysregulation of photosynthetic genes including RBCS (RuBisCO small subunit) and CAB (chlorophyll a/b binding proteins), with reduced expression during subjective dawn. Electron microscopy of chloroplasts showed altered thylakoid membrane organization and reduced grana stacking. Biomass measurements confirmed 23% reduction in fresh weight and 31% decrease in leaf area compared to ground controls. Clock resetting experiments using light pulses showed delayed phase shifting responses. These results demonstrate that spaceflight disrupts plant circadian rhythms, leading to reduced photosynthetic efficiency and growth, necessitating optimized lighting protocols for space agriculture.",
+    "experiment_id": "GLDS-012",
+    "impacts": ["circadian rhythms", "photosynthetic efficiency", "plant productivity", "space agriculture", "bioregenerative life support"],
+    "metadata": {
+      "source": "sample_data",
+      "organism": "Arabidopsis thaliana",
+      "experiment_type": "Chronobiology",
+      "platform": "Bioluminescence + Photosynthesis",
+      "factors": ["circadian disruption", "photosynthesis", "plant growth"],
+      "mission": "ISS Advanced Plant Habitat",
+      "publication_date": "2023-12-01",
+      "doi": "10.1111/pce.2023.0012",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-012"
+    }
+  }]
