@@ -7,6 +7,7 @@ for publications data using vectorized pandas operations for optimal performance
 
 import pandas as pd
 import re
+import ast
 from typing import List, Dict, Optional, Union
 from bs4 import BeautifulSoup
 import numpy as np
@@ -178,11 +179,13 @@ def _handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     else:
         df['impacts'] = [[] for _ in range(len(df))]
     
-    # Handle metadata field
+    # Handle metadata field - convert to string to avoid Arrow serialization issues
     if 'metadata' in df.columns:
-        df['metadata'] = df['metadata'].apply(lambda x: x if isinstance(x, dict) else {} if pd.isna(x) else {})
+        df['metadata'] = df['metadata'].apply(
+            lambda x: str(x) if isinstance(x, dict) and x else '{}' if pd.isna(x) or not x else str(x)
+        )
     else:
-        df['metadata'] = [{} for _ in range(len(df))]
+        df['metadata'] = ['{}' for _ in range(len(df))]
     
     return df
 
@@ -333,17 +336,17 @@ def _add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
     
     # Extract source information from metadata
     df['data_source'] = df['metadata'].apply(
-        lambda x: x.get('source', 'unknown') if isinstance(x, dict) else 'unknown'
+        lambda x: ast.literal_eval(x).get('source', 'unknown') if isinstance(x, str) and x != '{}' else 'unknown'
     )
     
     # Extract organism information
     df['organism'] = df['metadata'].apply(
-        lambda x: x.get('organism', '') if isinstance(x, dict) else ''
+        lambda x: ast.literal_eval(x).get('organism', '') if isinstance(x, str) and x != '{}' else ''
     ).fillna('').astype(str)
     
     # Extract experiment type
     df['experiment_type'] = df['metadata'].apply(
-        lambda x: x.get('experiment_type', '') if isinstance(x, dict) else ''
+        lambda x: ast.literal_eval(x).get('experiment_type', '') if isinstance(x, str) and x != '{}' else ''
     ).fillna('').astype(str)
     
     # Text length metrics for quality assessment

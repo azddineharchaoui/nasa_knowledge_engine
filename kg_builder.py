@@ -1317,7 +1317,16 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
             # Add other metadata fields
             for col in ['abstract', 'metadata', 'impacts', 'authors', 'doi']:
                 if col in df.columns and pd.notna(row[col]):
-                    node_attrs[col] = str(row[col])[:200]
+                    if col == 'metadata' and isinstance(row[col], str):
+                        # Handle string metadata safely
+                        try:
+                            import ast
+                            metadata_dict = ast.literal_eval(row[col])
+                            node_attrs[col] = str(metadata_dict)[:200]
+                        except:
+                            node_attrs[col] = str(row[col])[:200]
+                    else:
+                        node_attrs[col] = str(row[col])[:200]
             
             G.add_node(exp_node, **node_attrs)
             

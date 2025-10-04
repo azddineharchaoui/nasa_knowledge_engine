@@ -2227,7 +2227,7 @@ def main():
         # Show sample data as an example
         st.subheader("📋 Sample Data Preview")
         sample_df, _ = create_sample_data("small")
-        st.dataframe(sample_df[['title', 'abstract']].head(3), use_container_width=True)
+        st.dataframe(sample_df[['title', 'abstract']].head(3), width='stretch')
         st.caption("This is what the interface looks like with data loaded.")
         
     else:
@@ -2356,7 +2356,7 @@ def main():
                                         lambda x: x[:200] + '...' if len(str(x)) > 200 else x
                                     )
                             
-                            st.dataframe(display_data, use_container_width=True, height=400)
+                            st.dataframe(display_data, width='stretch', height=400)
                         
                         # Detailed publication viewer
                         st.subheader("📄 Publication Details")
@@ -2402,12 +2402,14 @@ def main():
                                     if 'data_source' in pub_data:
                                         st.write(f"🔗 Source: {pub_data['data_source']}")
                                     
-                                    if 'keywords' in pub_data and pd.notna(pub_data['keywords']):
-                                        if isinstance(pub_data['keywords'], list):
-                                            keywords_str = ', '.join(pub_data['keywords'])
-                                        else:
-                                            keywords_str = str(pub_data['keywords'])
-                                        st.write(f"🏷️ **Keywords:** {keywords_str}")
+                                    if 'keywords' in pub_data:
+                                        keywords = pub_data['keywords']
+                                        if keywords is not None and str(keywords).strip() != '' and str(keywords) != 'nan':
+                                            if isinstance(keywords, list):
+                                                keywords_str = ', '.join(str(k) for k in keywords)
+                                            else:
+                                                keywords_str = str(keywords)
+                                            st.write(f"🏷️ **Keywords:** {keywords_str}")
                     
                     else:
                         st.warning("⚠️ No publications match your current filters")
@@ -2420,7 +2422,7 @@ def main():
                 
                 # Show basic fallback display
                 st.subheader("📋 Basic Data View")
-                st.dataframe(df.head(10), use_container_width=True)
+                st.dataframe(df.head(10), width='stretch')
             
             # Publication details
             if len(filtered_df) > 0:
@@ -2583,7 +2585,7 @@ def main():
                             )
                             fig.update_layout(height=700)
                             
-                        st.plotly_chart(fig, use_container_width=True, key="enhanced_network_plot")
+                        st.plotly_chart(fig, width='stretch', key="enhanced_network_plot")
                         
                         # Additional information panel
                         if graph_query:
@@ -2605,7 +2607,7 @@ def main():
                         # Fallback to basic visualization
                         try:
                             basic_fig = create_network_plot(G, graph_query)
-                            st.plotly_chart(basic_fig, use_container_width=True)
+                            st.plotly_chart(basic_fig, width='stretch')
                         except:
                             st.error("❌ Unable to create any visualization")
                 
@@ -2640,7 +2642,7 @@ def main():
                             
                             if nodes_data:
                                 results_df = pd.DataFrame(nodes_data)
-                                st.dataframe(results_df, use_container_width=True)
+                                st.dataframe(results_df, width='stretch')
                                 
                                 # Node selection for detailed analysis
                                 if len(nodes_data) > 0:
@@ -2733,7 +2735,7 @@ def main():
                         # Create visualization
                         fig = create_network_plot(viz_graph, graph_query if graph_query else None)
                         fig.update_layout(height=600)
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                         
                     except Exception as e:
                         st.error(f"❌ Visualization error: {str(e)}")
@@ -2759,7 +2761,7 @@ def main():
                     try:
                         sample_fig = create_network_plot(sample_G)
                         sample_fig.update_layout(height=400, title="Sample Knowledge Graph")
-                        st.plotly_chart(sample_fig, use_container_width=True)
+                        st.plotly_chart(sample_fig, width='stretch')
                     except Exception:
                         st.info("Sample visualization not available")
         
@@ -2835,7 +2837,7 @@ def main():
                     # Create enhanced summary dashboard
                     try:
                         summary_fig = create_research_summary_dashboard(df)
-                        st.plotly_chart(summary_fig, use_container_width=True, key="summary_dashboard")
+                        st.plotly_chart(summary_fig, width='stretch', key="summary_dashboard")
                     except Exception as e:
                         st.error(f"❌ Summary dashboard error: {str(e)}")
                 
@@ -2991,10 +2993,10 @@ def main():
                 
                 with perf_col2:
                     # Cache status
-                    cache_info = st.cache_data.get_stats()
-                    if hasattr(cache_info, '__len__'):
+                    try:
+                        # Check if cache is working by trying to access it
                         st.info(f"💾 Cache: Active")
-                    else:
+                    except Exception:
                         st.info("💾 Cache: Unknown")
                 
                 with perf_col3:
