@@ -316,6 +316,131 @@ def _validate_summarizer(summarizer: object) -> bool:
         return False
 
 
+def _create_space_biology_prompt(text: str) -> str:
+    """Create impact-focused prompt for space biology research summarization."""
+    space_bio_context = (
+        "Summarize the space biology research impacts and key findings: "
+        "Focus on health effects, biological changes, mission implications, "
+        "quantitative results, statistical significance, countermeasures, "
+        "and organism-specific experimental conditions. "
+    )
+    return f"{space_bio_context}\n\n{text}"
+
+
+def _validate_space_biology_summary_quality(summary: str, original_text: str) -> bool:
+    """Validate summary quality with space biology-specific criteria."""
+    if not summary or len(summary.strip()) < 20:
+        return False
+    
+    # Length validation (should be 40-120 words for optimal impact communication)
+    word_count = len(summary.split())
+    if word_count < 30 or word_count > 150:
+        return False
+    
+    # Compression ratio validation (should compress meaningfully)
+    compression_ratio = len(summary) / len(original_text)
+    if compression_ratio > 0.8 or compression_ratio < 0.1:
+        return False
+    
+    # Space biology relevance validation
+    space_bio_terms = {
+        'microgravity', 'space', 'astronaut', 'spaceflight', 'iss', 'mars',
+        'bone', 'muscle', 'cardiovascular', 'radiation', 'immune',
+        'health', 'effects', 'changes', 'mission', 'countermeasures',
+        'biological', 'physiological', 'organism', 'experimental'
+    }
+    
+    summary_lower = summary.lower()
+    original_lower = original_text.lower()
+    
+    # Check for space biology terminology
+    space_terms_in_summary = sum(1 for term in space_bio_terms if term in summary_lower)
+    space_terms_in_original = sum(1 for term in space_bio_terms if term in original_lower)
+    
+    # Summary should retain key space biology terms
+    if space_terms_in_original > 0 and space_terms_in_summary == 0:
+        return False
+    
+    # Content coherence validation
+    if summary.endswith('...') or summary.count('.') == 0:
+        return False
+    
+    # Check for quantitative information preservation
+    import re
+    numbers_in_original = len(re.findall(r'\d+\.?\d*%?', original_text))
+    numbers_in_summary = len(re.findall(r'\d+\.?\d*%?', summary))
+    
+    # Should preserve some quantitative data if present
+    if numbers_in_original >= 2 and numbers_in_summary == 0:
+        return False
+    
+    # Word overlap validation (meaningful content retention)
+    original_words = set(original_lower.split())
+    summary_words = set(summary_lower.split())
+    
+    if len(original_words) > 0:
+        overlap = len(summary_words.intersection(original_words)) / len(original_words)
+        if overlap < 0.15:  # At least 15% overlap for relevance
+            return False
+    
+    return True
+
+
+def _calculate_summary_relevance_score(summary: str, original_text: str) -> float:
+    """Calculate relevance score for space biology summaries (0-1 scale)."""
+    if not summary or not original_text:
+        return 0.0
+    
+    score = 0.0
+    
+    # Impact terminology score (0.3 weight)
+    impact_terms = {
+        'effects', 'impacts', 'changes', 'findings', 'results',
+        'significant', 'increased', 'decreased', 'reduced', 'enhanced'
+    }
+    summary_lower = summary.lower()
+    impact_score = sum(0.05 for term in impact_terms if term in summary_lower)
+    score += min(impact_score, 0.3)
+    
+    # Space biology domain score (0.25 weight)
+    domain_terms = {
+        'microgravity', 'space', 'astronaut', 'spaceflight', 'radiation',
+        'bone', 'muscle', 'cardiovascular', 'immune', 'health'
+    }
+    domain_score = sum(0.05 for term in domain_terms if term in summary_lower)
+    score += min(domain_score, 0.25)
+    
+    # Quantitative information score (0.2 weight)
+    import re
+    quantitative_patterns = [
+        r'\d+\.?\d*%',  # Percentages
+        r'\d+\.?\d*\s*fold',  # Fold changes
+        r'\d+\.?\d*\s*times',  # Multiples
+        r'p\s*[<>=]\s*0\.\d+',  # P-values
+        r'\d+\.?\d*\s*months?',  # Time periods
+        r'\d+\.?\d*\s*days?'  # Time periods
+    ]
+    quant_matches = sum(len(re.findall(pattern, summary, re.IGNORECASE)) 
+                       for pattern in quantitative_patterns)
+    score += min(quant_matches * 0.05, 0.2)
+    
+    # Length appropriateness score (0.15 weight)
+    word_count = len(summary.split())
+    if 50 <= word_count <= 90:  # Optimal range for impact summaries
+        score += 0.15
+    elif 40 <= word_count <= 120:  # Acceptable range
+        score += 0.10
+    
+    # Coherence and structure score (0.1 weight)
+    sentence_count = summary.count('.') + summary.count('!') + summary.count('?')
+    if 2 <= sentence_count <= 4:  # Well-structured summary
+        score += 0.1
+    elif sentence_count >= 1:  # At least one complete sentence
+        score += 0.05
+    
+    return min(score, 1.0)
+
+
 def summarize_text(
     text: str,
     min_length: int = 40,
@@ -377,8 +502,8 @@ def summarize_text(
     try:
         log(f"🤖 AI summarizing text ({len(clean_text)} chars) with {num_beams} beams...")
         
-        # Add space biology impact focus to prompt
-        impact_prompt = f"Summarize the space biology research impacts and key findings: {clean_text}"
+        # Create enhanced space biology impact-focused prompt
+        impact_prompt = _create_space_biology_prompt(clean_text)
         
 
         
@@ -390,13 +515,15 @@ def summarize_text(
                 max_length=max_length,
                 do_sample=do_sample,
                 num_beams=num_beams if not do_sample else 1,
-                temperature=temperature if do_sample else 1.0,
+                temperature=temperature if do_sample else 0.7,
                 truncation=True,
-                # Quality enhancements
+                # Enhanced quality parameters for space biology
                 no_repeat_ngram_size=3,
                 early_stopping=True,
-                length_penalty=1.0,
-                repetition_penalty=1.2
+                length_penalty=1.1,      # Slightly prefer shorter summaries
+                repetition_penalty=1.3,  # Stronger penalty for repetition
+                diversity_penalty=0.2,   # Encourage diverse content
+                num_return_sequences=1
             )
         
         # Cross-platform timeout handling
@@ -452,12 +579,15 @@ def summarize_text(
             # Clean up prompt artifacts
             summary = _clean_summary_text(raw_summary, impact_prompt)
             
-            # Quality validation
-            if _validate_summary_quality(summary, clean_text):
-                log(f"✅ High-quality summary generated ({len(summary)} chars)")
+            # Enhanced space biology quality validation
+            if _validate_space_biology_summary_quality(summary, clean_text):
+                relevance_score = _calculate_summary_relevance_score(summary, clean_text)
+                word_count = len(summary.split())
+                log(f"✅ Summary passed quality validation (relevance: {relevance_score:.2f})")
+                log(f"✅ High-quality summary generated ({len(summary)} chars, {word_count} words)")
                 return summary
             else:
-                log(f"⚠️ AI summary failed quality check, using fallback")
+                log(f"⚠️ AI summary failed space biology quality check, using fallback")
                 return _enhanced_fallback_summarization(clean_text, max_length)
         else:
             log(f"❌ Invalid AI response format: {type(result)}")
@@ -564,7 +694,8 @@ def summarize_batch(
     num_beams: int = 4,
     batch_size: int = 4,
     show_progress: bool = True,
-    timeout_per_batch: int = 120
+    timeout_per_batch: int = 120,
+    relevance_threshold: float = 0.5
 ) -> List[Optional[str]]:
     """
     High-performance batch summarization with progress tracking and memory management.
@@ -638,7 +769,8 @@ def summarize_batch(
                     max_length=max_length,
                     do_sample=do_sample,
                     num_beams=num_beams,
-                    timeout=timeout_per_batch
+                    timeout=timeout_per_batch,
+                    relevance_threshold=relevance_threshold
                 )
                 
                 summaries.extend(batch_summaries)
@@ -707,7 +839,8 @@ def _process_single_batch(
     max_length: int, 
     do_sample: bool,
     num_beams: int,
-    timeout: int
+    timeout: int,
+    relevance_threshold: float = 0.5
 ) -> List[str]:
     """Process a single batch with cross-platform timeout protection and quality validation."""
     import signal
@@ -800,11 +933,18 @@ def _process_single_batch(
                         raw_summary = result['summary_text']
                         clean_summary = _clean_summary_text(raw_summary, processed_texts[i])
                         
-                        # Quality validation
-                        if _validate_summary_quality(clean_summary, original_text):
-                            batch_results[original_idx] = clean_summary
+                        # Enhanced quality validation with relevance scoring
+                        if _validate_space_biology_summary_quality(clean_summary, original_text):
+                            relevance_score = _calculate_summary_relevance_score(clean_summary, original_text)
+                            if relevance_score >= relevance_threshold:
+                                batch_results[original_idx] = clean_summary
+                                log(f"✅ Summary passed quality validation")
+                            else:
+                                log(f"⚠️ Summary relevance too low ({relevance_score:.2f}), using fallback")
+                                batch_results[original_idx] = _enhanced_fallback_summarization(original_text, max_length)
                         else:
                             # Use fallback for poor quality AI summary
+                            log(f"⚠️ Summary failed quality validation, using fallback")
                             batch_results[original_idx] = _enhanced_fallback_summarization(original_text, max_length)
         
         return batch_results
@@ -962,13 +1102,14 @@ def summarize_abstracts(df: pd.DataFrame, batch_size: int = 6, show_progress: bo
         
         summaries = summarize_batch(
             texts=abstracts.tolist(),
-            min_length=40,
-            max_length=120,  # Optimized for 50-100 word summaries
-            do_sample=False,  # Use beam search for quality
-            num_beams=4,      # Balance quality vs speed
+            min_length=40,           # Ensure sufficient detail for impacts
+            max_length=120,          # Allow comprehensive impact descriptions
+            do_sample=False,         # Use beam search for consistency
+            num_beams=4,             # Enhanced beam search for quality
             batch_size=batch_size,
             show_progress=show_progress,
-            timeout_per_batch=120  # 2 minutes per batch
+            timeout_per_batch=150,   # Extended time for quality processing
+            relevance_threshold=0.5  # Ensure high-quality space biology summaries
         )
         
         # Add summaries to DataFrame
