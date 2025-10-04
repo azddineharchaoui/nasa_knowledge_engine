@@ -4,16 +4,38 @@
 ## 🚀 Quick Start
 
 ### Setup
+
+**Quick Installation:**
+```bash
+# Automated installation (recommended)
+chmod +x install.sh && ./install.sh    # Linux/Mac
+# OR
+install.bat                             # Windows
+```
+
+**Manual Installation:**
 ```bash
 # Install dependencies
 pip install -r requirements.txt
 
-# Download spaCy language model
+# Download spaCy language model (REQUIRED)
 python -m spacy download en_core_web_sm
+
+# Verify installation
+python -c "import spacy; nlp = spacy.load('en_core_web_sm'); print('Ready!')"
 
 # Run the application
 streamlit run app.py
 ```
+
+**Requirements Included:**
+- ✅ **Core Framework**: Streamlit, Pandas, Requests
+- ✅ **AI/ML**: PyTorch, Transformers, spaCy, NLTK  
+- ✅ **Knowledge Graph**: NetworkX, spaCy NER
+- ✅ **Visualization**: Plotly interactive graphs
+- ✅ **Web Scraping**: BeautifulSoup4, lxml
+- ✅ **Testing**: Pytest comprehensive suite
+- ✅ **Performance**: psutil, optimized caching
 
 ### Access
 - **Local**: http://localhost:8501

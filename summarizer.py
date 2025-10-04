@@ -7,7 +7,10 @@ with GPU acceleration support and intelligent caching for performance.
 
 import pandas as pd
 import time
-from typing import List, Dict, Optional, Union
+import re
+import math
+from typing import List, Dict, Optional, Union, Tuple
+from collections import Counter, defaultdict
 from utils import log, log_error
 
 # Optional imports with fallbacks for installation flexibility
@@ -22,8 +25,72 @@ except ImportError:
     torch = None
     pipeline = None
 
+# Advanced text analysis imports
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+    import numpy as np
+    SKLEARN_AVAILABLE = True
+    log("✓ Scikit-learn available for advanced text analysis")
+except ImportError:
+    log_error("Scikit-learn not available - using basic text analysis")
+    SKLEARN_AVAILABLE = False
+    np = None
+
+try:
+    import nltk
+    from nltk.tokenize import sent_tokenize, word_tokenize
+    from nltk.corpus import stopwords
+    NLTK_AVAILABLE = True
+except ImportError:
+    log_error("NLTK not available - using basic tokenization")
+    NLTK_AVAILABLE = False
+
 # Global cache for the summarization pipeline
 _summarizer_cache = None
+
+# Space Biology Domain-Specific Keywords for Impact Analysis
+SPACE_BIOLOGY_IMPACTS = {
+    'health': {
+        'bone': ['bone loss', 'bone density', 'osteoporosis', 'demineralization', 'bone remodeling'],
+        'muscle': ['muscle atrophy', 'muscle mass', 'muscle weakness', 'sarcopenia', 'muscle wasting'],
+        'cardiovascular': ['cardiovascular deconditioning', 'cardiac', 'blood pressure', 'orthostatic intolerance'],
+        'immune': ['immune suppression', 'immune function', 'T-cell', 'cytokine', 'inflammation'],
+        'vision': ['vision changes', 'SANS', 'optic disc swelling', 'visual acuity'],
+        'kidney': ['kidney stones', 'renal', 'calcium metabolism', 'hypercalciuria'],
+        'radiation': ['radiation exposure', 'DNA damage', 'cancer risk', 'cosmic rays']
+    },
+    'biological': {
+        'gene_expression': ['gene expression', 'RNA', 'transcription', 'upregulation', 'downregulation'],
+        'protein': ['protein synthesis', 'proteomics', 'enzyme activity', 'protein levels'],
+        'cellular': ['cell division', 'apoptosis', 'cell cycle', 'cellular stress', 'oxidative stress'],
+        'metabolism': ['metabolism', 'glucose', 'insulin', 'metabolic', 'energy'],
+        'circadian': ['circadian rhythm', 'sleep', 'melatonin', 'sleep-wake cycle']
+    },
+    'operational': {
+        'performance': ['cognitive performance', 'motor skills', 'reaction time', 'coordination'],
+        'countermeasures': ['exercise', 'COLRES', 'treadmill', 'resistance training', 'nutrition'],
+        'mission': ['ISS', 'EVA', 'spacewalk', 'mission duration', 'long-duration']
+    }
+}
+
+QUANTITATIVE_PATTERNS = [
+    r'(\d+(?:\.\d+)?%)\s*(?:increase|decrease|reduction|change)',
+    r'(\d+(?:\.\d+)?-fold)\s*(?:increase|decrease|higher|lower)',
+    r'p\s*[<>=]\s*(\d+(?:\.\d+)?)',
+    r'(\d+(?:\.\d+)?)\s*(?:mg|kg|ml|cm|mm|μm|nm)',
+    r'(\d+)\s*(?:days?|weeks?|months?|years?)\s*(?:of|in|during)',
+    r'n\s*=\s*(\d+)',
+    r'(\d+(?:\.\d+)?)\s*(?:±|\+/-|SD|SE)\s*(\d+(?:\.\d+)?)',
+]
+
+ORGANISM_PATTERNS = {
+    'mouse': ['mouse', 'mice', 'mus musculus', 'murine'],
+    'rat': ['rat', 'rats', 'rattus norvegicus'],
+    'human': ['human', 'astronaut', 'crew', 'subject', 'participant'],
+    'plant': ['arabidopsis', 'plant', 'seedling', 'growth'],
+    'cell': ['cell', 'culture', 'fibroblast', 'osteoblast', 'myocyte']
+}
 
 
 def load_summarizer() -> Optional[object]:
@@ -1605,3 +1672,624 @@ if __name__ == '__main__':
     finally:
         # Cleanup
         clear_summarizer_cache()
+
+
+# Advanced Summarization Functions
+
+def _ensure_nltk_data():
+    """Ensure required NLTK data is downloaded."""
+    if not NLTK_AVAILABLE:
+        return False
+    
+    try:
+        nltk.data.find('tokenizers/punkt')
+        nltk.data.find('corpora/stopwords')
+        return True
+    except LookupError:
+        try:
+            log("Downloading required NLTK data...")
+            nltk.download('punkt', quiet=True)
+            nltk.download('stopwords', quiet=True)
+            return True
+        except Exception as e:
+            log_error(f"Failed to download NLTK data: {e}")
+            return False
+
+
+def _extract_sentences(text: str) -> List[str]:
+    """Extract sentences from text using NLTK or basic splitting."""
+    if NLTK_AVAILABLE and _ensure_nltk_data():
+        try:
+            return sent_tokenize(text)
+        except Exception:
+            pass
+    
+    # Fallback to basic sentence splitting
+    sentences = re.split(r'[.!?]+', text)
+    return [s.strip() for s in sentences if s.strip() and len(s.strip()) > 10]
+
+
+def _calculate_sentence_tfidf_scores(sentences: List[str], query_keywords: Optional[List[str]] = None) -> List[float]:
+    """Calculate TF-IDF scores for sentences."""
+    if not SKLEARN_AVAILABLE or len(sentences) < 2:
+        # Fallback to simple word frequency scoring
+        return _calculate_simple_sentence_scores(sentences, query_keywords)
+    
+    try:
+        # Prepare documents (sentences)
+        documents = [' '.join(word_tokenize(sent.lower())) if NLTK_AVAILABLE else sent.lower() 
+                    for sent in sentences]
+        
+        # Create TF-IDF vectorizer
+        vectorizer = TfidfVectorizer(
+            max_features=1000,
+            stop_words='english' if NLTK_AVAILABLE else None,
+            ngram_range=(1, 2)
+        )
+        
+        tfidf_matrix = vectorizer.fit_transform(documents)
+        feature_names = vectorizer.get_feature_names_out()
+        
+        # Calculate sentence scores
+        scores = []
+        for i, sentence in enumerate(sentences):
+            # Base TF-IDF score (sum of all term scores)
+            base_score = float(tfidf_matrix[i].sum())
+            
+            # Position weighting (earlier sentences get higher scores)
+            position_weight = 1.0 - (i / len(sentences)) * 0.3
+            
+            # Length normalization (prefer medium-length sentences)
+            length_score = min(1.0, len(sentence.split()) / 20)
+            
+            # Query keyword boost
+            keyword_boost = 1.0
+            if query_keywords:
+                sentence_lower = sentence.lower()
+                keyword_matches = sum(1 for kw in query_keywords if kw.lower() in sentence_lower)
+                keyword_boost = 1.0 + (keyword_matches * 0.5)
+            
+            final_score = base_score * position_weight * length_score * keyword_boost
+            scores.append(final_score)
+        
+        return scores
+        
+    except Exception as e:
+        log_error(f"TF-IDF calculation failed: {e}")
+        return _calculate_simple_sentence_scores(sentences, query_keywords)
+
+
+def _calculate_simple_sentence_scores(sentences: List[str], query_keywords: Optional[List[str]] = None) -> List[float]:
+    """Fallback sentence scoring using word frequency."""
+    scores = []
+    
+    # Get all words for frequency calculation
+    all_words = []
+    for sent in sentences:
+        words = word_tokenize(sent.lower()) if NLTK_AVAILABLE else sent.lower().split()
+        all_words.extend(words)
+    
+    word_freq = Counter(all_words)
+    max_freq = max(word_freq.values()) if word_freq else 1
+    
+    for i, sentence in enumerate(sentences):
+        words = word_tokenize(sentence.lower()) if NLTK_AVAILABLE else sentence.lower().split()
+        
+        # Word frequency score
+        freq_score = sum(word_freq[word] for word in words) / max_freq
+        
+        # Position weight
+        position_weight = 1.0 - (i / len(sentences)) * 0.3
+        
+        # Query keyword boost
+        keyword_boost = 1.0
+        if query_keywords:
+            sentence_lower = sentence.lower()
+            keyword_matches = sum(1 for kw in query_keywords if kw.lower() in sentence_lower)
+            keyword_boost = 1.0 + (keyword_matches * 0.5)
+        
+        scores.append(freq_score * position_weight * keyword_boost)
+    
+    return scores
+
+
+def _extract_named_entities_frequency(text: str) -> Dict[str, int]:
+    """Extract and count named entities for sentence importance."""
+    entities = defaultdict(int)
+    
+    # Space biology specific entities
+    text_lower = text.lower()
+    
+    # Count organism mentions
+    for organism, patterns in ORGANISM_PATTERNS.items():
+        for pattern in patterns:
+            entities[f"organism_{organism}"] += len(re.findall(rf'\b{re.escape(pattern)}\b', text_lower))
+    
+    # Count impact mentions
+    for category, impacts in SPACE_BIOLOGY_IMPACTS.items():
+        for impact_type, terms in impacts.items():
+            for term in terms:
+                count = len(re.findall(rf'\b{re.escape(term)}\b', text_lower))
+                if count > 0:
+                    entities[f"{category}_{impact_type}"] += count
+    
+    return dict(entities)
+
+
+def extract_extractive_summary(text: str, num_sentences: int = 3, 
+                              query_keywords: Optional[List[str]] = None) -> Dict[str, any]:
+    """Extract most informative sentences using TF-IDF and entity analysis."""
+    start_time = time.time()
+    
+    try:
+        # Extract sentences
+        sentences = _extract_sentences(text)
+        
+        if len(sentences) <= num_sentences:
+            return {
+                'sentences': sentences,
+                'scores': [1.0] * len(sentences),
+                'summary': ' '.join(sentences),
+                'metadata': {
+                    'method': 'all_sentences',
+                    'processing_time': time.time() - start_time,
+                    'sentence_count': len(sentences)
+                }
+            }
+        
+        # Calculate TF-IDF scores
+        tfidf_scores = _calculate_sentence_tfidf_scores(sentences, query_keywords)
+        
+        # Calculate named entity frequency scores
+        entity_freq = _extract_named_entities_frequency(text)
+        
+        # Enhanced sentence scoring
+        enhanced_scores = []
+        for i, (sentence, tfidf_score) in enumerate(zip(sentences, tfidf_scores)):
+            # Entity density score for this sentence
+            sent_entities = _extract_named_entities_frequency(sentence)
+            entity_score = sum(sent_entities.values()) / max(1, len(sentence.split()))
+            
+            # Quantitative content score
+            quant_matches = sum(1 for pattern in QUANTITATIVE_PATTERNS 
+                              if re.search(pattern, sentence, re.IGNORECASE))
+            quant_score = min(1.0, quant_matches * 0.3)
+            
+            # Combined score
+            final_score = tfidf_score + (entity_score * 0.3) + (quant_score * 0.2)
+            enhanced_scores.append(final_score)
+        
+        # Select top sentences
+        sentence_pairs = list(zip(sentences, enhanced_scores, range(len(sentences))))
+        sentence_pairs.sort(key=lambda x: x[1], reverse=True)
+        
+        top_sentences = sentence_pairs[:num_sentences]
+        # Sort by original order for coherent summary
+        top_sentences.sort(key=lambda x: x[2])
+        
+        selected_sentences = [s[0] for s in top_sentences]
+        selected_scores = [s[1] for s in top_sentences]
+        
+        summary = ' '.join(selected_sentences)
+        
+        return {
+            'sentences': selected_sentences,
+            'scores': selected_scores,
+            'summary': summary,
+            'metadata': {
+                'method': 'tfidf_enhanced',
+                'processing_time': time.time() - start_time,
+                'original_sentence_count': len(sentences),
+                'selected_count': len(selected_sentences),
+                'avg_score': sum(selected_scores) / len(selected_scores),
+                'entity_frequency': entity_freq,
+                'compression_ratio': len(summary) / len(text)
+            }
+        }
+        
+    except Exception as e:
+        log_error(f"Extractive summary extraction failed: {e}")
+        # Fallback to first N sentences
+        sentences = _extract_sentences(text)[:num_sentences]
+        return {
+            'sentences': sentences,
+            'scores': [0.5] * len(sentences),
+            'summary': ' '.join(sentences),
+            'metadata': {
+                'method': 'fallback_first_sentences',
+                'processing_time': time.time() - start_time,
+                'error': str(e)
+            }
+        }
+
+
+def extract_impact_focused_analysis(text: str, impact_type: str = 'all') -> Dict[str, any]:
+    """Extract impact-focused information from research abstracts."""
+    start_time = time.time()
+    
+    analysis = {
+        'impact_type': impact_type,
+        'quantitative_findings': [],
+        'methodologies': [],
+        'sample_info': {},
+        'timeline_info': {},
+        'organism_effects': {},
+        'system_effects': {},
+        'statistical_significance': [],
+        'metadata': {}
+    }
+    
+    try:
+        text_lower = text.lower()
+        
+        # Extract quantitative findings
+        for pattern in QUANTITATIVE_PATTERNS:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                context_start = max(0, match.start() - 50)
+                context_end = min(len(text), match.end() + 50)
+                context = text[context_start:context_end].strip()
+                
+                analysis['quantitative_findings'].append({
+                    'value': match.group(),
+                    'context': context,
+                    'position': match.start()
+                })
+        
+        # Extract experimental methodologies
+        methodology_patterns = [
+            r'(RNA-seq|RNA sequencing|transcriptome|transcriptomic)',
+            r'(proteomics?|protein analysis|western blot)',
+            r'(micro-CT|microCT|computed tomography)',
+            r'(qPCR|RT-PCR|quantitative PCR)',
+            r'(immunofluorescence|immunohistochemistry|IHC)',
+            r'(flow cytometry|FACS)',
+            r'(hindlimb unloading|HLU|suspension)',
+            r'(spaceflight|space flight|ISS|international space station)',
+        ]
+        
+        for pattern in methodology_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                analysis['methodologies'].append({
+                    'method': match.group(),
+                    'position': match.start()
+                })
+        
+        # Extract sample size information
+        sample_patterns = [
+            r'n\s*=\s*(\d+)',
+            r'(\d+)\s*(?:mice|rats|subjects|animals|participants)',
+            r'sample size\s*(?:of\s*)?(\d+)',
+        ]
+        
+        for pattern in sample_patterns:
+            matches = re.finditer(pattern, text_lower, re.IGNORECASE)
+            for match in matches:
+                try:
+                    sample_size = int(re.search(r'\d+', match.group()).group())
+                    analysis['sample_info']['sample_size'] = sample_size
+                    break
+                except (ValueError, AttributeError):
+                    continue
+        
+        # Extract timeline information
+        timeline_patterns = [
+            r'(\d+)\s*(?:day|week|month|year)s?\s*(?:of|in|during|for)',
+            r'(?:for|during|over)\s*(\d+)\s*(?:day|week|month|year)s?',
+            r'(\d+)[–-](\d+)\s*(?:day|week|month|year)s?',
+        ]
+        
+        for pattern in timeline_patterns:
+            matches = re.finditer(pattern, text_lower)
+            for match in matches:
+                analysis['timeline_info'][match.group()] = {
+                    'duration': match.group(),
+                    'context': text[max(0, match.start()-30):match.end()+30]
+                }
+        
+        # Extract organism-specific effects
+        if impact_type == 'all' or impact_type == 'biological':
+            for organism, patterns in ORGANISM_PATTERNS.items():
+                for pattern in patterns:
+                    if pattern in text_lower:
+                        # Find effects mentioned near organism
+                        organism_positions = [m.start() for m in re.finditer(rf'\b{re.escape(pattern)}\b', text_lower)]
+                        
+                        for pos in organism_positions:
+                            context_window = text[max(0, pos-100):pos+200]
+                            
+                            # Look for effects in the context
+                            effects = []
+                            for category, impacts in SPACE_BIOLOGY_IMPACTS.items():
+                                for impact_type_key, terms in impacts.items():
+                                    for term in terms:
+                                        if term in context_window.lower():
+                                            effects.append(f"{category}_{impact_type_key}")
+                            
+                            if effects:
+                                analysis['organism_effects'][organism] = {
+                                    'effects': list(set(effects)),
+                                    'context': context_window.strip()
+                                }
+        
+        # Extract system-specific effects
+        system_keywords = {
+            'musculoskeletal': ['bone', 'muscle', 'skeletal', 'osteo', 'myo'],
+            'cardiovascular': ['heart', 'cardiac', 'blood', 'vascular', 'circulation'],
+            'nervous': ['brain', 'neural', 'neuron', 'cognitive', 'motor'],
+            'immune': ['immune', 'immunological', 'T-cell', 'B-cell', 'cytokine'],
+            'endocrine': ['hormone', 'endocrine', 'insulin', 'cortisol', 'thyroid'],
+        }
+        
+        for system, keywords in system_keywords.items():
+            system_mentions = sum(1 for kw in keywords if kw in text_lower)
+            if system_mentions > 0:
+                # Find specific effects for this system
+                effects = []
+                if system in ['musculoskeletal']:
+                    for term in SPACE_BIOLOGY_IMPACTS['health']['bone'] + SPACE_BIOLOGY_IMPACTS['health']['muscle']:
+                        if term in text_lower:
+                            effects.append(term)
+                elif system == 'cardiovascular':
+                    for term in SPACE_BIOLOGY_IMPACTS['health']['cardiovascular']:
+                        if term in text_lower:
+                            effects.append(term)
+                
+                analysis['system_effects'][system] = {
+                    'mentions': system_mentions,
+                    'effects': effects
+                }
+        
+        # Extract statistical significance
+        sig_patterns = [
+            r'p\s*[<>=]\s*(\d+(?:\.\d+)?)',
+            r'significance|significant(?:ly)?',
+            r'p-value|p value',
+            r'confidence interval|CI',
+        ]
+        
+        for pattern in sig_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                context = text[max(0, match.start()-30):match.end()+30]
+                analysis['statistical_significance'].append({
+                    'match': match.group(),
+                    'context': context.strip()
+                })
+        
+        # Add processing metadata
+        analysis['metadata'] = {
+            'processing_time': time.time() - start_time,
+            'text_length': len(text),
+            'quantitative_count': len(analysis['quantitative_findings']),
+            'methodology_count': len(analysis['methodologies']),
+            'organism_count': len(analysis['organism_effects']),
+            'system_count': len(analysis['system_effects']),
+            'statistical_mentions': len(analysis['statistical_significance'])
+        }
+        
+        return analysis
+        
+    except Exception as e:
+        log_error(f"Impact-focused analysis failed: {e}")
+        analysis['metadata']['error'] = str(e)
+        analysis['metadata']['processing_time'] = time.time() - start_time
+        return analysis
+
+
+def _calculate_coverage_metrics(summary: str, original_text: str) -> Dict[str, float]:
+    """Calculate comprehensive coverage metrics for summary quality."""
+    metrics = {
+        'compression_ratio': len(summary) / len(original_text) if original_text else 0.0,
+        'word_coverage': 0.0,
+        'entity_coverage': 0.0,
+        'keyword_density': 0.0,
+        'readability_score': 0.0,
+        'technical_complexity': 0.0
+    }
+    
+    try:
+        # Word coverage - percentage of unique words preserved
+        if NLTK_AVAILABLE:
+            original_words = set(word_tokenize(original_text.lower()))
+            summary_words = set(word_tokenize(summary.lower()))
+        else:
+            original_words = set(original_text.lower().split())
+            summary_words = set(summary.lower().split())
+        
+        if original_words:
+            metrics['word_coverage'] = len(summary_words & original_words) / len(original_words)
+        
+        # Entity coverage - preservation of important entities
+        original_entities = _extract_named_entities_frequency(original_text)
+        summary_entities = _extract_named_entities_frequency(summary)
+        
+        if original_entities:
+            entity_overlap = sum(min(original_entities.get(entity, 0), summary_entities.get(entity, 0))
+                               for entity in original_entities)
+            total_entities = sum(original_entities.values())
+            metrics['entity_coverage'] = entity_overlap / total_entities if total_entities > 0 else 0.0
+        
+        # Keyword density - space biology terms per 100 words
+        summary_words_count = len(summary.split())
+        if summary_words_count > 0:
+            space_bio_terms = 0
+            summary_lower = summary.lower()
+            
+            for category, impacts in SPACE_BIOLOGY_IMPACTS.items():
+                for impact_type, terms in impacts.items():
+                    for term in terms:
+                        space_bio_terms += len(re.findall(rf'\b{re.escape(term)}\b', summary_lower))
+            
+            metrics['keyword_density'] = (space_bio_terms / summary_words_count) * 100
+        
+        # Readability score (simplified)
+        sentences = _extract_sentences(summary)
+        if sentences:
+            avg_sentence_length = sum(len(s.split()) for s in sentences) / len(sentences)
+            # Simple readability: prefer 15-25 words per sentence
+            readability = 1.0 - abs(avg_sentence_length - 20) / 20
+            metrics['readability_score'] = max(0.0, min(1.0, readability))
+        
+        # Technical complexity - presence of technical terms
+        technical_patterns = [
+            r'\b\d+(?:\.\d+)?\s*(?:mg|kg|ml|cm|mm|μm|nm|%)',  # Units
+            r'\bp\s*[<>=]\s*\d+(?:\.\d+)?',  # P-values
+            r'\b(?:RNA|DNA|protein|gene|enzyme)\b',  # Molecular terms
+            r'\b(?:microgravity|spaceflight|ISS)\b',  # Space terms
+        ]
+        
+        technical_matches = sum(len(re.findall(pattern, summary, re.IGNORECASE)) 
+                              for pattern in technical_patterns)
+        metrics['technical_complexity'] = min(1.0, technical_matches / max(1, summary_words_count) * 10)
+        
+    except Exception as e:
+        log_error(f"Coverage metrics calculation failed: {e}")
+    
+    return metrics
+
+
+def _calculate_summary_confidence(summary: str, original_text: str, method: str) -> float:
+    """Calculate confidence score for summary quality."""
+    try:
+        # Base confidence by method
+        method_confidence = {
+            'abstractive_ai': 0.8,
+            'extractive_tfidf': 0.7,
+            'hybrid': 0.85,
+            'fallback': 0.4
+        }
+        
+        base_confidence = method_confidence.get(method, 0.5)
+        
+        # Adjust based on length appropriateness
+        length_ratio = len(summary) / len(original_text) if original_text else 0
+        length_score = 1.0
+        
+        if length_ratio < 0.1:  # Too short
+            length_score = 0.6
+        elif length_ratio > 0.8:  # Too long
+            length_score = 0.7
+        elif 0.15 <= length_ratio <= 0.4:  # Good compression
+            length_score = 1.0
+        
+        # Adjust based on content quality
+        content_score = 1.0
+        
+        # Check for coherence (basic)
+        if len(summary.split('.')) < 2:  # Very short
+            content_score *= 0.8
+        
+        # Check for space biology relevance
+        summary_lower = summary.lower()
+        space_terms = sum(1 for category, impacts in SPACE_BIOLOGY_IMPACTS.items()
+                         for impact_type, terms in impacts.items()
+                         for term in terms if term in summary_lower)
+        
+        if space_terms == 0:
+            content_score *= 0.7  # Low domain relevance
+        elif space_terms >= 3:
+            content_score *= 1.1  # High domain relevance
+        
+        final_confidence = base_confidence * length_score * content_score
+        return min(1.0, max(0.0, final_confidence))
+        
+    except Exception as e:
+        log_error(f"Confidence calculation failed: {e}")
+        return 0.5
+
+
+def generate_comprehensive_summary(text: str, keywords: Optional[List[str]] = None,
+                                 summary_types: Optional[List[str]] = None) -> Dict[str, any]:
+    """Generate comprehensive multi-modal summary with all enhancements."""
+    start_time = time.time()
+    
+    if summary_types is None:
+        summary_types = ['general', 'health', 'biological']
+    
+    if keywords is None:
+        keywords = []
+    
+    comprehensive_result = {
+        'summaries': {},
+        'quality_metrics': {},
+        'processing_metadata': {},
+        'recommendations': []
+    }
+    
+    try:
+        # Generate extractive summary
+        log("Generating extractive summary...")
+        extractive_result = extract_extractive_summary(text, num_sentences=3, query_keywords=keywords)
+        comprehensive_result['summaries']['extractive'] = extractive_result
+        
+        # Generate abstractive summary if available
+        abstractive_summary = None
+        abstractive_metadata = {}
+        
+        if TRANSFORMERS_AVAILABLE and _summarizer_cache:
+            try:
+                log("Generating abstractive summary...")
+                abstractive_result = _summarize_single_text(text, min_length=50, max_length=120)
+                if abstractive_result and 'summary' in abstractive_result:
+                    abstractive_summary = abstractive_result['summary']
+                    abstractive_metadata = abstractive_result.get('metadata', {})
+                    comprehensive_result['summaries']['abstractive'] = {
+                        'summary': abstractive_summary,
+                        'metadata': abstractive_metadata
+                    }
+            except Exception as e:
+                log_error(f"Abstractive summarization failed: {e}")
+        
+        # Generate impact-focused analysis for each type
+        for summary_type in summary_types:
+            log(f"Generating {summary_type} impact analysis...")
+            impact_result = extract_impact_focused_analysis(text, impact_type=summary_type)
+            comprehensive_result['summaries'][f'impact_{summary_type}'] = impact_result
+        
+        # Calculate comprehensive quality metrics
+        log("Calculating quality metrics...")
+        for summary_name, summary_data in comprehensive_result['summaries'].items():
+            if isinstance(summary_data, dict) and 'summary' in summary_data:
+                summary_text = summary_data['summary']
+            elif isinstance(summary_data, dict) and summary_name == 'extractive':
+                summary_text = summary_data.get('summary', '')
+            elif isinstance(summary_data, str):
+                summary_text = summary_data
+            else:
+                continue
+            
+            if summary_text:
+                coverage = _calculate_coverage_metrics(summary_text, text)
+                confidence = _calculate_summary_confidence(
+                    summary_text, text, 
+                    'abstractive_ai' if 'abstractive' in summary_name else 'extractive_tfidf'
+                )
+                
+                comprehensive_result['quality_metrics'][summary_name] = {
+                    'coverage_metrics': coverage,
+                    'confidence_score': confidence,
+                    'length': len(summary_text),
+                    'word_count': len(summary_text.split())
+                }
+        
+        # Add processing metadata
+        comprehensive_result['processing_metadata'] = {
+            'total_processing_time': time.time() - start_time,
+            'original_text_length': len(text),
+            'original_word_count': len(text.split()),
+            'keywords_used': keywords,
+            'summary_types_generated': list(comprehensive_result['summaries'].keys()),
+            'transformers_available': TRANSFORMERS_AVAILABLE,
+            'sklearn_available': SKLEARN_AVAILABLE,
+            'nltk_available': NLTK_AVAILABLE
+        }
+        
+        return comprehensive_result
+        
+    except Exception as e:
+        log_error(f"Comprehensive summarization failed: {e}")
+        comprehensive_result['error'] = str(e)
+        comprehensive_result['processing_metadata']['processing_time'] = time.time() - start_time
+        return comprehensive_result

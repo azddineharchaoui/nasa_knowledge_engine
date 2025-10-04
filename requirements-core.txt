@@ -1,0 +1,34 @@
+# NASA Space Biology Knowledge Engine - Core Requirements
+# Essential packages for basic functionality
+
+# Core Framework (Essential)
+streamlit>=1.38.0
+pandas>=2.2.0
+requests>=2.31.0
+
+# Web scraping (Essential)
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# Graph and visualization (Essential) 
+networkx>=3.3
+plotly>=5.15.0
+
+# Basic NLP (Essential)
+nltk>=3.8.1
+
+# Basic ML (Core functionality)
+scikit-learn>=1.4.0
+numpy>=1.26.0
+
+# Performance 
+psutil>=6.0.0
+tqdm>=4.66.0
+
+# Streamlit dependencies
+click>=8.1.0
+altair>=5.0.0
+protobuf>=4.25.0
+
+# Testing
+pytest>=7.4.0
