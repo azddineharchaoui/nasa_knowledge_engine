@@ -1,0 +1,54 @@
+[
+  {
+    "title": "Radiation Exposure Impact on Plant Growth in Space Conditions",
+    "abstract": "Space radiation poses significant challenges to biological systems during interplanetary travel. This investigation studies the effects of galactic cosmic radiation on Arabidopsis thaliana seedlings grown in simulated space conditions. Findings reveal altered gene expression patterns in DNA repair pathways and oxidative stress responses, providing insights for future deep space missions.",
+    "experiment_id": "GLDS-242",
+    "impacts": [
+      "radiation damage",
+      "plant biology",
+      "DNA repair",
+      "oxidative stress"
+    ],
+    "metadata": {
+      "source": "sample_data",
+      "organism": "Arabidopsis thaliana",
+      "experiment_type": "Gene Expression",
+      "platform": "Microarray",
+      "factors": [
+        "cosmic radiation",
+        "simulated microgravity"
+      ],
+      "mission": "ISS Expedition 58",
+      "publication_date": "2023-09-22",
+      "doi": "10.1126/sample-plant-2023",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-242"
+    }
+  },
+  {
+    "title": "Immune System Dysfunction in Simulated Mars Mission Conditions",
+    "abstract": "Long-duration space missions to Mars will expose crew members to unique stressors including radiation, isolation, and microgravity that may compromise immune function. This ground-based analog study examines immune cell responses in human subjects during a 365-day Mars simulation. Results show suppressed T-cell function and altered cytokine production, highlighting the need for immune system monitoring and countermeasures during deep space exploration.",
+    "experiment_id": "GLDS-321",
+    "impacts": [
+      "immune suppression",
+      "Mars mission",
+      "crew health monitoring",
+      "deep space exploration"
+    ],
+    "metadata": {
+      "source": "sample_data",
+      "organism": "Homo sapiens",
+      "experiment_type": "Immunology",
+      "platform": "Flow Cytometry + ELISA",
+      "factors": [
+        "isolation",
+        "stress",
+        "confined environment",
+        "radiation simulation"
+      ],
+      "mission": "Mars-500 Analog",
+      "publication_date": "2023-12-15",
+      "doi": "10.1172/sample-immune-2023",
+      "project_link": "https://genelab-data.ndc.nasa.gov/genelab/accession/GLDS-321"
+    }
+  }
+]
