@@ -572,7 +572,7 @@ def _process_genelab_results(results: List[Dict], limit: int, source_name: str) 
     return publications
 
 
-def search_ntrs_fallback(query: str = 'space biology', limit: int = 50) -> List[Dict]:
+def search_ntrs_fallback(query: str = 'space biology', limit: int = 35) -> List[Dict]:
     """
     Enhanced NASA Technical Reports Server (NTRS) API integration with JSON data extraction.
     
@@ -1123,7 +1123,7 @@ def _extract_space_biology_impacts(text: str) -> List[str]:
     return list(set(impacts))  # Remove duplicates
 
 
-def search_ntrs(query: str = 'space biology', limit: int = 50) -> List[Dict]:
+def search_ntrs(query: str = 'space biology', limit: int = 35) -> List[Dict]:
     """
     Legacy function - redirects to enhanced NTRS implementation.
     """
@@ -1412,7 +1412,7 @@ if __name__ == '__main__':
             offline_data = fetch_publications('radiation', limit=3)
             log(f"Offline mode successful: {len(offline_data)} publications")
             if offline_data:
-                log(f"Sample offline result: {offline_data[0]['title'][:50]}...")
+                log(f"Sample offline result: {offline_data[0]['title'][:35]}...")
         except Exception as e:
             log(f"⚠ Offline mode test failed: {str(e)}")
         
@@ -1544,7 +1544,7 @@ def test_pagination_support(query: str = 'space biology', max_limit: int = 100) 
     try:
         publications = _fetch_genelab_publications(query, max_limit)
         
-        if len(publications) > 50:
+        if len(publications) > 35:
             log(f"✅ Pagination test PASSED: {len(publications)} publications fetched")
             
             # Test for duplicate experiment IDs

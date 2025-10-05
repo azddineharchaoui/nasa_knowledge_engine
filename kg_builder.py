@@ -1249,6 +1249,79 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
         
         log_info(f"Building rich knowledge graph from {len(df)} experiments using '{text_col}' column")
         
+        # Pre-process DataFrame to handle array columns that might cause comparison issues
+        try:
+            # Convert any array-type columns to proper lists using iterative approach to avoid pandas array comparisons
+            for col in ['impacts', 'organisms', 'experimental_conditions', 'measurements', 'space_terms']:
+                if col in df.columns:
+                    new_values = []
+                    for idx in range(len(df)):
+                        value = df.iloc[idx][col]
+                        converted_value = []
+                        
+                        try:
+                            # Check for None first (avoid pd.isna for arrays)
+                            if value is None:
+                                converted_value = []
+                            # Handle numpy arrays first
+                            elif hasattr(value, '__array__') and hasattr(value, 'tolist'):
+                                import numpy as np
+                                converted_value = value.tolist()
+                            # Handle pandas Series
+                            elif hasattr(value, 'tolist') and hasattr(value, 'dtype'):
+                                converted_value = value.tolist()
+                            # Handle regular lists/tuples
+                            elif isinstance(value, (list, tuple)):
+                                converted_value = list(value)
+                            # Handle string representations
+                            elif isinstance(value, str):
+                                if not value.strip():
+                                    converted_value = []
+                                else:
+                                    try:
+                                        import ast
+                                        parsed = ast.literal_eval(value)
+                                        if isinstance(parsed, (list, tuple)):
+                                            converted_value = list(parsed)
+                                        else:
+                                            converted_value = [parsed]
+                                    except:
+                                        converted_value = [value]
+                            # Handle scalar values (check for pandas NA types carefully)
+                            else:
+                                try:
+                                    # Try pandas isna only for scalar values
+                                    if pd.isna(value):
+                                        converted_value = []
+                                    else:
+                                        converted_value = [str(value)]
+                                except (ValueError, TypeError):
+                                    # If pd.isna fails, assume it's a valid value
+                                    converted_value = [str(value)] if value else []
+                            
+                            # Clean the list - remove None and empty strings
+                            cleaned_list = []
+                            for item in converted_value:
+                                if item is not None:
+                                    item_str = str(item).strip()
+                                    if item_str:
+                                        cleaned_list.append(item_str)
+                            
+                            converted_value = cleaned_list
+                            
+                        except Exception as e:
+                            log_error(f"Error converting {col} value at index {idx}: {e}")
+                            converted_value = []
+                        
+                        new_values.append(converted_value)
+                    
+                    # Replace the column with cleaned values
+                    df = df.copy()  # Ensure we can modify the DataFrame
+                    df[col] = new_values
+                    
+        except Exception as e:
+            log_error(f"Error preprocessing DataFrame columns: {e}")
+        
         # Initialize tracking for entity frequencies and hub identification
         entity_frequencies = {}
         organism_experiments = {}
@@ -1261,31 +1334,117 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
             exp_id = row['id']
             text_content = row[text_col] if pd.notna(row[text_col]) else ""
             
+            # Extract entities from text
             if text_content:
                 entities = extract_entities(text_content)
-                all_entities[exp_id] = entities
+            else:
+                entities = {}
+            
+            # Handle pre-extracted impacts from DataFrame if available
+            if 'impacts' in df.columns and row['impacts'] is not None:
+                df_impacts = row['impacts']
                 
-                # Track entity frequencies across experiments
-                for category in ['impacts', 'organisms', 'experimental_conditions', 'measurements', 'space_terms']:
-                    for entity in entities.get(category, []):
+                # Comprehensive array/list conversion
+                try:
+                    # Handle pandas Series/arrays
+                    if hasattr(df_impacts, 'tolist'):
+                        df_impacts = df_impacts.tolist()
+                    # Handle numpy arrays
+                    elif hasattr(df_impacts, '__array__'):
+                        import numpy as np
+                        df_impacts = np.asarray(df_impacts).tolist()
+                    # Handle string representations
+                    elif isinstance(df_impacts, str):
+                        try:
+                            import ast
+                            df_impacts = ast.literal_eval(df_impacts)
+                        except:
+                            df_impacts = [df_impacts] if df_impacts.strip() else []
+                    # Handle single values
+                    elif not isinstance(df_impacts, (list, tuple)):
+                        df_impacts = [str(df_impacts)] if df_impacts is not None else []
+                    
+                    # Ensure it's a proper list and clean empty/None values
+                    if isinstance(df_impacts, (list, tuple)):
+                        df_impacts = [str(item).strip() for item in df_impacts 
+                                    if item is not None and str(item).strip()]
+                    else:
+                        df_impacts = []
+                        
+                except Exception as e:
+                    log_error(f"Error processing impacts for {exp_id}: {e}")
+                    df_impacts = []
+                
+                # Merge with extracted impacts
+                text_impacts = entities.get('impacts', [])
+                # Ensure text_impacts is also a proper list
+                if not isinstance(text_impacts, list):
+                    text_impacts = [str(text_impacts)] if text_impacts else []
+                
+                # Combine and deduplicate
+                all_impacts = list(set(text_impacts + df_impacts))
+                # Filter out empty strings
+                all_impacts = [impact for impact in all_impacts if impact and str(impact).strip()]
+                entities['impacts'] = all_impacts
+            
+            all_entities[exp_id] = entities
+            
+            # Track entity frequencies across experiments
+            for category in ['impacts', 'organisms', 'experimental_conditions', 'measurements', 'space_terms']:
+                entity_list = entities.get(category, [])
+                
+                # Comprehensive list conversion with array handling
+                try:
+                    # Handle pandas/numpy arrays
+                    if hasattr(entity_list, 'tolist'):
+                        entity_list = entity_list.tolist()
+                    elif hasattr(entity_list, '__array__'):
+                        import numpy as np
+                        entity_list = np.asarray(entity_list).tolist()
+                    # Ensure it's a list
+                    elif not isinstance(entity_list, (list, tuple)):
+                        entity_list = [str(entity_list)] if entity_list else []
+                    
+                    # Clean and validate entities
+                    clean_entities = []
+                    for entity in entity_list:
+                        if entity is not None:
+                            entity_str = str(entity).strip()
+                            if entity_str:  # Only add non-empty entities
+                                clean_entities.append(entity_str)
+                    
+                    entity_list = clean_entities
+                    
+                except Exception as e:
+                    log_error(f"Error processing {category} entities for {exp_id}: {e}")
+                    entity_list = []
+                
+                # Track frequencies
+                for entity in entity_list:
+                    try:
                         entity_key = f"{category}:{entity}"
                         entity_frequencies[entity_key] = entity_frequencies.get(entity_key, 0) + 1
-                        
+                    
                         # Track which experiments study what
-                        if category == 'organisms':
-                            if entity not in organism_experiments:
-                                organism_experiments[entity] = []
-                            organism_experiments[entity].append(exp_id)
-                        elif category == 'impacts':
-                            if entity not in impact_experiments:
-                                impact_experiments[entity] = []
-                            impact_experiments[entity].append(exp_id)
-                        elif category == 'experimental_conditions':
-                            if entity not in condition_experiments:
-                                condition_experiments[entity] = []
-                            condition_experiments[entity].append(exp_id)
-        
-        # Identify hub entities (appearing in 3+ experiments or high frequency)
+                        try:
+                            if category == 'organisms':
+                                if entity not in organism_experiments:
+                                    organism_experiments[entity] = []
+                                organism_experiments[entity].append(exp_id)
+                            elif category == 'impacts':
+                                if entity not in impact_experiments:
+                                    impact_experiments[entity] = []
+                                impact_experiments[entity].append(exp_id)
+                            elif category == 'experimental_conditions':
+                                if entity not in condition_experiments:
+                                    condition_experiments[entity] = []
+                                condition_experiments[entity].append(exp_id)
+                        except Exception as e:
+                            log_error(f"Error tracking {category} entity '{entity}' for {exp_id}: {e}")
+                            continue
+                    except Exception as e:
+                        log_error(f"Error processing entity in {category} for {exp_id}: {e}")
+                        continue        # Identify hub entities (appearing in 3+ experiments or high frequency)
         hub_entities = {k: v for k, v in entity_frequencies.items() if v >= min(3, len(df) * 0.3)}
         log_info(f"Identified {len(hub_entities)} hub entities: {list(hub_entities.keys())[:5]}...")
         
@@ -1330,38 +1489,54 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
             
             G.add_node(exp_node, **node_attrs)
             
-            # Extract and process entities for this experiment
-            text_content = row[text_col] if pd.notna(row[text_col]) else ""
-            if text_content:
-                entities = all_entities.get(exp_id, {})
+            # Extract and process entities for this experiment  
+            entities = all_entities.get(exp_id, {})
+            
+            # Create hierarchical Impact nodes with rich attributes
+            impact_list = entities.get('impacts', [])
+            # Ensure impact_list is a proper list
+            if not isinstance(impact_list, list):
+                impact_list = [str(impact_list)] if impact_list else []
+            
+            for impact in impact_list:
+                if not impact or not str(impact).strip():  # Skip empty impacts
+                    continue
+                    
+                impact = str(impact).strip()  # Ensure string type
+                impact_node = f"Impact:{impact}"
+                is_hub = f"impacts:{impact}" in hub_entities
+                frequency = entity_frequencies.get(f"impacts:{impact}", 1)
                 
-                # Create hierarchical Impact nodes with rich attributes
-                for impact in entities.get('impacts', []):
-                    impact_node = f"Impact:{impact}"
-                    is_hub = f"impacts:{impact}" in hub_entities
-                    frequency = entity_frequencies.get(f"impacts:{impact}", 1)
-                    
-                    if not G.has_node(impact_node):
-                        G.add_node(impact_node, 
-                                  type='impact',
-                                  node_level=3,  # Lower in hierarchy
-                                  term=impact,
-                                  description=f"Health/biological impact: {impact}",
-                                  frequency=frequency,
-                                  is_hub=is_hub,
-                                  severity_score=min(frequency * 0.2, 1.0),
-                                  experiments_studying=len(impact_experiments.get(impact, [exp_id])))
-                    
-                    # Weighted edge based on confidence and frequency
-                    weight = 0.8 + (frequency * 0.1)
-                    G.add_edge(exp_node, impact_node, 
-                              relation='studies',
-                              confidence=0.8,
-                              weight=weight,
-                              evidence_strength=frequency)
+                if not G.has_node(impact_node):
+                    G.add_node(impact_node, 
+                              type='impact',
+                              node_level=3,  # Lower in hierarchy
+                              term=impact,
+                              description=f"Health/biological impact: {impact}",
+                              frequency=frequency,
+                              is_hub=is_hub,
+                              severity_score=min(frequency * 0.2, 1.0),
+                              experiments_studying=len(impact_experiments.get(impact, [exp_id])))
+                
+                # Weighted edge based on confidence and frequency
+                weight = 0.8 + (frequency * 0.1)
+                G.add_edge(exp_node, impact_node, 
+                          relation='studies',
+                          confidence=0.8,
+                          weight=weight,
+                          evidence_strength=frequency)
                 
                 # Create Organism nodes with taxonomy information
-                for organism in entities.get('organisms', []):
+                organism_list = entities.get('organisms', [])
+                # Ensure organism_list is a proper list
+                if not isinstance(organism_list, list):
+                    organism_list = [str(organism_list)] if organism_list else []
+                    
+                for organism in organism_list:
+                    if not organism or not str(organism).strip():  # Skip empty organisms
+                        continue
+                        
+                    organism = str(organism).strip()  # Ensure string type
                     org_node = f"Organism:{organism}"
                     is_hub = f"organisms:{organism}" in hub_entities
                     frequency = entity_frequencies.get(f"organisms:{organism}", 1)
@@ -1384,7 +1559,16 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
                               weight=weight)
                 
                 # Create Experimental Condition nodes
-                for condition in entities.get('experimental_conditions', []):
+                condition_list = entities.get('experimental_conditions', [])
+                # Ensure condition_list is a proper list
+                if not isinstance(condition_list, list):
+                    condition_list = [str(condition_list)] if condition_list else []
+                    
+                for condition in condition_list:
+                    if not condition or not str(condition).strip():  # Skip empty conditions
+                        continue
+                        
+                    condition = str(condition).strip()  # Ensure string type  
                     cond_node = f"Condition:{condition}"
                     frequency = entity_frequencies.get(f"experimental_conditions:{condition}", 1)
                     is_hub = f"experimental_conditions:{condition}" in hub_entities
@@ -1405,7 +1589,16 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
                               weight=weight)
                 
                 # Add Measurement and Space Term nodes
-                for measurement in entities.get('measurements', []):
+                measurement_list = entities.get('measurements', [])
+                # Ensure measurement_list is a proper list
+                if not isinstance(measurement_list, list):
+                    measurement_list = [str(measurement_list)] if measurement_list else []
+                
+                for measurement in measurement_list:
+                    if not measurement or not str(measurement).strip():  # Skip empty measurements
+                        continue
+                        
+                    measurement = str(measurement).strip()  # Ensure string type
                     meas_node = f"Measurement:{measurement}"
                     if not G.has_node(meas_node):
                         G.add_node(meas_node,
@@ -1417,7 +1610,16 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
                               confidence=0.6,
                               weight=0.6)
                 
-                for space_term in entities.get('space_terms', []):
+                space_term_list = entities.get('space_terms', [])
+                # Ensure space_term_list is a proper list
+                if not isinstance(space_term_list, list):
+                    space_term_list = [str(space_term_list)] if space_term_list else []
+                    
+                for space_term in space_term_list:
+                    if not space_term or not str(space_term).strip():  # Skip empty space terms
+                        continue
+                        
+                    space_term = str(space_term).strip()  # Ensure string type
                     space_node = f"SpaceTerm:{space_term}"
                     frequency = entity_frequencies.get(f"space_terms:{space_term}", 1)
                     is_hub = f"space_terms:{space_term}" in hub_entities
@@ -1437,7 +1639,16 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
                               weight=weight)
                 
                 # Add Organization and Location nodes
-                for org in entities.get('organizations', []):
+                organization_list = entities.get('organizations', [])
+                # Ensure organization_list is a proper list
+                if not isinstance(organization_list, list):
+                    organization_list = [str(organization_list)] if organization_list else []
+                    
+                for org in organization_list:
+                    if not org or not str(org).strip():  # Skip empty organizations
+                        continue
+                        
+                    org = str(org).strip()  # Ensure string type
                     org_node = f"Organization:{org}"
                     if not G.has_node(org_node):
                         G.add_node(org_node,
@@ -1449,7 +1660,16 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
                               confidence=0.7,
                               weight=0.7)
                 
-                for location in entities.get('locations', []):
+                location_list = entities.get('locations', [])
+                # Ensure location_list is a proper list
+                if not isinstance(location_list, list):
+                    location_list = [str(location_list)] if location_list else []
+                    
+                for location in location_list:
+                    if not location or not str(location).strip():  # Skip empty locations
+                        continue
+                        
+                    location = str(location).strip()  # Ensure string type
                     loc_node = f"Location:{location}"
                     if not G.has_node(loc_node):
                         G.add_node(loc_node,
@@ -1637,7 +1857,16 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
             entities = all_entities[exp_id]
             exp_node = f"Experiment:{exp_id}"
             
-            for mitigation in entities.get('mitigation_strategies', []):
+            mitigation_list = entities.get('mitigation_strategies', [])
+            # Ensure mitigation_list is a proper list
+            if not isinstance(mitigation_list, list):
+                mitigation_list = [str(mitigation_list)] if mitigation_list else []
+                
+            for mitigation in mitigation_list:
+                if not mitigation or not str(mitigation).strip():  # Skip empty mitigations
+                    continue
+                    
+                mitigation = str(mitigation).strip()  # Ensure string type
                 mitigation_node = f"Mitigation:{mitigation}"
                 if not G.has_node(mitigation_node):
                     G.add_node(mitigation_node,
@@ -1653,7 +1882,12 @@ def build_kg(df: pd.DataFrame) -> Optional[object]:
                           edge_type='intervention')
                 
                 # Connect mitigations to impacts they address
-                for impact in entities.get('impacts', []):
+                impact_list = entities.get('impacts', [])
+                # Ensure impact_list is a proper list
+                if not isinstance(impact_list, list):
+                    impact_list = [str(impact_list)] if impact_list else []
+                    
+                for impact in impact_list:
                     impact_node = f"Impact:{impact}"
                     if G.has_node(impact_node):
                         G.add_edge(mitigation_node, impact_node,

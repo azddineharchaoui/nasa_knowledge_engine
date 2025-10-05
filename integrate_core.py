@@ -46,7 +46,7 @@ except ImportError as e:
 from utils import log, log_error, cache_to_json
 
 
-def run_pipeline(query: str = 'space biology', limit: int = 50) -> Tuple[Optional[pd.DataFrame], Optional[Any]]:
+def run_pipeline(query: str = 'space biology', limit: int = 35) -> Tuple[Optional[pd.DataFrame], Optional[Any]]:
     """
     Execute the complete NASA Space Biology research pipeline.
     
@@ -58,7 +58,7 @@ def run_pipeline(query: str = 'space biology', limit: int = 50) -> Tuple[Optiona
     
     Args:
         query: Search query for publications (default: 'space biology')
-        limit: Maximum number of publications to fetch (default: 50)
+        limit: Maximum number of publications to fetch (default: 35)
         
     Returns:
         Tuple of (processed_dataframe, knowledge_graph)

@@ -1,5 +1,5 @@
 """
-NASA Space Biology Knowledge Engine - Streamlit Dashboard
+SKYLINK - Space Knowledge Intelligence Platform
 
 Interactive web application for exploring space biology research impacts
 through AI-powered knowledge graphs and summarization.
@@ -245,7 +245,7 @@ def retry_with_backoff(max_retries: int = 3, backoff_factor: float = 2.0):
 
 
 @retry_with_backoff(max_retries=2)
-def load_pipeline_data(query: str = 'space biology', limit: int = 50) -> Tuple[pd.DataFrame, Optional[Any]]:
+def load_pipeline_data(query: str = 'space biology', limit: int = 35) -> Tuple[pd.DataFrame, Optional[Any]]:
     """Load data using the pipeline with retry logic."""
     if not PIPELINE_AVAILABLE:
         raise ImportError("Pipeline modules not available")
@@ -1931,8 +1931,8 @@ def show_data_source_info(data_source: str):
 def main():
     """Enhanced main Streamlit application with comprehensive error handling."""
     st.set_page_config(
-        page_title="NASA Space Biology Knowledge Engine",
-        page_icon="🚀",
+        page_title="SKYLINK - Space Knowledge Intelligence",
+        page_icon="icone.png",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -1949,9 +1949,37 @@ def main():
     if 'current_limit' not in st.session_state:
         st.session_state.current_limit = 50
     
-    # Main title and header
-    st.title('🚀 NASA Space Biology Knowledge Engine')
-    st.markdown("*AI-powered exploration of space biology research impacts with enhanced reliability*")
+    # Main title and header with icon placeholder
+    header_col1, header_col2 = st.columns([1, 8])
+    
+    with header_col1:
+        # Afficher l'icône SKYLINK
+        try:
+            st.image("icone.png", width=140)
+        except FileNotFoundError:
+            # Placeholder si l'icône n'est pas trouvée
+            st.markdown("""
+            <div style="
+                width: 140px; 
+                height: 60px; 
+                border: 2px dashed #0066cc; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                background-color: #f0f8ff;
+                border-radius: 5px;
+                margin: 10px 0;
+                color: #0066cc;
+                font-size: 10px;
+                font-weight: bold;
+            ">
+                LOGO SKYLINK<br>140x60px
+            </div>
+            """, unsafe_allow_html=True)
+    
+    with header_col2:
+        st.title('🛰️ SKYLINK')
+        st.markdown("*Space Knowledge Intelligence Platform - AI-powered exploration of space biology research*")
     
     # Sidebar - System Status
     show_system_status()
@@ -2101,7 +2129,7 @@ def main():
                 'timestamp': datetime.now().strftime("%Y%m%d_%H%M%S")
             }
             st.success("🔗 Shareable link generated!")
-            st.code(f"NASA_KB_shared_{share_params['timestamp']}", language='text')
+            st.code(f"SKYLINK_shared_{share_params['timestamp']}", language='text')
     
     # Bookmarks and saved states
     with st.sidebar.expander("🔖 Bookmarks", expanded=False):
@@ -2749,19 +2777,6 @@ def main():
                         log_system_event(f"Visualization error: {str(e)}", "error")
                 
             else:
-                # No knowledge graph available - provide specific diagnosis
-                st.warning("⚠️ Knowledge graph not available")
-                
-                if not KG_BUILDER_AVAILABLE:
-                    st.info("🔧 Knowledge graph module is not available. Check system status.")
-                elif G is None:
-                    st.info("🔧 Knowledge graph could not be built from current data.")
-                    st.info("💡 This usually means the pipeline failed during graph construction.")
-                elif G.number_of_nodes() == 0:
-                    st.info("🔧 Knowledge graph is empty - try loading more data.")
-                    st.info("💡 The graph was created but has no nodes. Check if your data has sufficient content.")
-                else:
-                    st.info("🔧 Unknown graph issue - graph exists but not displaying properly.")
                 
                 # Show what a knowledge graph would look like
                 st.subheader("📋 Knowledge Graph Preview")
@@ -3395,7 +3410,7 @@ Cache TTL: 3600s (1 hour)
     footer_col1, footer_col2, footer_col3 = st.columns(3)
     
     with footer_col1:
-        st.markdown("**🚀 NASA Space Biology Knowledge Engine**")
+        st.markdown("**�️ SKYLINK - Space Knowledge Intelligence**")
         st.caption("Enhanced with comprehensive error handling and performance optimization")
     
     with footer_col2:
