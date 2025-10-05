@@ -87,7 +87,7 @@ def get_lightweight_summarizer(timeout=5):
         return None
 
 
-def quick_summarize_text(text: str, max_length: int = 100) -> str:
+def quick_summarize_text(text: str, max_length: int = 500) -> str:
     """
     Ultra-fast text summarization with instant fallback.
     
@@ -100,7 +100,7 @@ def quick_summarize_text(text: str, max_length: int = 100) -> str:
     return ultra_fast_extractive_summary(text, max_length)
 
 
-def ultra_fast_extractive_summary(text: str, max_length: int = 100) -> str:
+def ultra_fast_extractive_summary(text: str, max_length: int = 500) -> str:
     """
     Ultra-fast extractive summarization - optimized for speed.
     
@@ -182,12 +182,12 @@ def ultra_fast_extractive_summary(text: str, max_length: int = 100) -> str:
         return text[:max_length] + "..." if len(text) > max_length else text
 
 
-def extractive_fallback_summary(text: str, max_length: int = 100) -> str:
+def extractive_fallback_summary(text: str, max_length: int = 500) -> str:
     """Backward compatibility wrapper."""
     return ultra_fast_extractive_summary(text, max_length)
 
 
-def ultra_fast_batch_summarize(texts: List[str], max_length: int = 100) -> List[str]:
+def ultra_fast_batch_summarize(texts: List[str], max_length: int = 500) -> List[str]:
     """
     Ultra-fast batch summarization - optimized for maximum speed.
     
@@ -218,12 +218,12 @@ def ultra_fast_batch_summarize(texts: List[str], max_length: int = 100) -> List[
     return summaries
 
 
-def fast_batch_summarize(texts: List[str], max_length: int = 100, timeout_per_text: float = 2.0) -> List[str]:
+def fast_batch_summarize(texts: List[str], max_length: int = 500, timeout_per_text: float = 2.0) -> List[str]:
     """Backward compatibility wrapper."""
     return ultra_fast_batch_summarize(texts, max_length)
 
 
-def ultra_fast_summarize_abstracts(df: pd.DataFrame, max_length: int = 100) -> pd.DataFrame:
+def ultra_fast_summarize_abstracts(df: pd.DataFrame, max_length: int = 500) -> pd.DataFrame:
     """
     Ultra-fast abstract summarization - zero blocking, maximum speed.
     
@@ -291,7 +291,7 @@ def ultra_fast_summarize_abstracts(df: pd.DataFrame, max_length: int = 100) -> p
         return df_result
 
 
-def lightweight_summarize_abstracts(df: pd.DataFrame, max_length: int = 100, timeout: float = 30.0) -> pd.DataFrame:
+def lightweight_summarize_abstracts(df: pd.DataFrame, max_length: int = 500, timeout: float = 30.0) -> pd.DataFrame:
     """Backward compatibility wrapper - routes to ultra-fast version."""
     return ultra_fast_summarize_abstracts(df, max_length)
 
@@ -319,7 +319,7 @@ def get_summarizer_status() -> Dict[str, Union[str, bool, float]]:
 def summarize_abstracts(df: pd.DataFrame, batch_size: int = 6, show_progress: bool = True) -> pd.DataFrame:
     """Backward compatibility wrapper - routes to lightweight version."""
     log("🔄 Using lightweight summarizer for fast processing")
-    return lightweight_summarize_abstracts(df, max_length=100, timeout=30.0)
+    return lightweight_summarize_abstracts(df, max_length=500, timeout=30.0)
 
 
 if __name__ == "__main__":

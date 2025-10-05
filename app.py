@@ -533,7 +533,7 @@ def create_enhanced_network_plot(G, query_term=None, layout_type="spring", node_
             hover += f"Community: {communities[node]}<br>"
         
         # Add node attributes if available
-        for attr_key in ['title', 'summary', 'abstract', 'keywords']:
+        for attr_key in ['title', 'abstract', 'keywords']:
             if attr_key in node_attrs:
                 attr_value = str(node_attrs[attr_key])
                 if len(attr_value) > 80:
@@ -541,7 +541,7 @@ def create_enhanced_network_plot(G, query_term=None, layout_type="spring", node_
                 hover += f"{attr_key.title()}: {attr_value}<br>"
         
         hover_text.append(hover)
-        node_text.append(node_str[:20] + '...' if len(node_str) > 20 else node_str)
+        node_text.append(node_str[:200] + '...' if len(node_str) > 200 else node_str)
     
     # Create node trace with enhanced properties
     node_trace = go.Scatter(
@@ -2043,45 +2043,45 @@ def main():
     G = get_knowledge_graph()
     
     # Enhanced Sidebar - Search and Filters
-    st.sidebar.subheader("🔍 Advanced Search & Filters")
+    # st.sidebar.subheader("🔍 Advanced Search & Filters")
     
-    # Enhanced search with boolean operators
+    # # Enhanced search with boolean operators
     search = st.sidebar.text_input(
         '🔍 Search Publications', 
-        placeholder='Enter: microgravity AND bone OR muscle',
-        help="Use AND, OR, NOT for advanced search. Search through titles, abstracts, and summaries"
+        placeholder=' ',
+        help=" "
     )
     
     # Advanced filtering options
-    with st.sidebar.expander("🎛️ Advanced Filters", expanded=False):
-        # Research domain filter
-        domain_filter = st.multiselect(
-            "🔬 Research Domain:",
-            ["Bone & Skeletal", "Muscle & Motor", "Cardiovascular", "Plant Biology", "Radiation & DNA", "Immune System", "Other"],
-            help="Filter by research domain"
-        )
+    # with st.sidebar.expander("🎛️ Advanced Filters", expanded=False):
+    #     # Research domain filter
+    #     domain_filter = st.multiselect(
+    #         "🔬 Research Domain:",
+    #         ["Bone & Skeletal", "Muscle & Motor", "Cardiovascular", "Plant Biology", "Radiation & DNA", "Immune System", "Other"],
+    #         help="Filter by research domain"
+    #     )
         
-        # Impact severity filter
-        impact_filter = st.selectbox(
-            "⚡ Impact Severity:",
-            ["All", "High", "Medium", "Low"],
-            help="Filter by research impact level"
-        )
+    #     # Impact severity filter
+    #     impact_filter = st.selectbox(
+    #         "⚡ Impact Severity:",
+    #         ["All", "High", "Medium", "Low"],
+    #         help="Filter by research impact level"
+    #     )
         
-        # Organism filter
-        organism_filter = st.multiselect(
-            "🐭 Study Organisms:",
-            ["Mouse/Mice", "Rat", "Human/Astronaut", "Plants", "Cell Culture", "Other"],
-            help="Filter by study organisms"
-        )
+    #     # Organism filter
+    #     organism_filter = st.multiselect(
+    #         "🐭 Study Organisms:",
+    #         ["Mouse/Mice", "Rat", "Human/Astronaut", "Plants", "Cell Culture", "Other"],
+    #         help="Filter by study organisms"
+    #     )
         
-        # Date range filter (if available)
-        st.write("📅 **Timeline Filter:**")
-        date_range = st.select_slider(
-            "Study Period:",
-            options=["2018-2019", "2020-2021", "2022-2023", "2024+", "All"],
-            value="All"
-        )
+    #     # Date range filter (if available)
+    #     st.write("📅 **Timeline Filter:**")
+    #     date_range = st.select_slider(
+    #         "Study Period:",
+    #         options=["2018-2019", "2020-2021", "2022-2023", "2024+", "All"],
+    #         value="All"
+    #     )
     
     # Cross-chart filtering controls
     with st.sidebar.expander("🔗 Cross-Chart Controls", expanded=False):
@@ -2101,35 +2101,35 @@ def main():
             st.rerun()
     
     # Export and sharing options
-    with st.sidebar.expander("📤 Export & Share", expanded=False):
-        st.write("**📊 Export Options:**")
+    # with st.sidebar.expander("📤 Export & Share", expanded=False):
+    #     st.write("**📊 Export Options:**")
         
-        export_format = st.selectbox(
-            "Format:",
-            ["PNG (High Quality)", "SVG (Vector)", "PDF (Report)", "HTML (Interactive)", "CSV (Data)"]
-        )
+    #     export_format = st.selectbox(
+    #         "Format:",
+    #         ["PNG (High Quality)", "SVG (Vector)", "PDF (Report)", "HTML (Interactive)", "CSV (Data)"]
+    #     )
         
-        include_data = st.checkbox("📋 Include Raw Data", value=True)
-        include_analysis = st.checkbox("📈 Include Analysis", value=True)
+    #     include_data = st.checkbox("📋 Include Raw Data", value=True)
+    #     include_analysis = st.checkbox("📈 Include Analysis", value=True)
         
-        if st.button("📥 Export Current View"):
-            try:
-                # Export functionality would be implemented here
-                st.success(f"✅ Exported in {export_format} format!")
-                st.info("💡 Export functionality ready for implementation")
-            except Exception as e:
-                st.error(f"❌ Export error: {str(e)}")
+    #     if st.button("📥 Export Current View"):
+    #         try:
+    #             # Export functionality would be implemented here
+    #             st.success(f"✅ Exported in {export_format} format!")
+    #             st.info("💡 Export functionality ready for implementation")
+    #         except Exception as e:
+    #             st.error(f"❌ Export error: {str(e)}")
         
-        st.write("**🔗 Share Options:**")
-        if st.button("🔗 Generate Share Link"):
-            # Generate shareable URL with current state
-            share_params = {
-                'query': search,
-                'filters': str(domain_filter),
-                'timestamp': datetime.now().strftime("%Y%m%d_%H%M%S")
-            }
-            st.success("🔗 Shareable link generated!")
-            st.code(f"SKYLINK_shared_{share_params['timestamp']}", language='text')
+    #     st.write("**🔗 Share Options:**")
+    #     if st.button("🔗 Generate Share Link"):
+    #         # Generate shareable URL with current state
+    #         share_params = {
+    #             'query': search,
+    #             'filters': str(domain_filter),
+    #             'timestamp': datetime.now().strftime("%Y%m%d_%H%M%S")
+    #         }
+    #         st.success("🔗 Shareable link generated!")
+    #         st.code(f"SKYLINK_shared_{share_params['timestamp']}", language='text')
     
     # Bookmarks and saved states
     with st.sidebar.expander("🔖 Bookmarks", expanded=False):
@@ -2378,12 +2378,13 @@ def main():
                             # Create display dataframe with truncated text for performance
                             display_data = display_df[selected_columns].copy()
                             
-                            # Truncate long text fields for better display
+                            # Truncate long text fields for better display (except summary)
                             for col in selected_columns:
-                                if col in ['abstract', 'summary']:
+                                if col == 'abstract':
                                     display_data[col] = display_data[col].astype(str).apply(
-                                        lambda x: x[:200] + '...' if len(str(x)) > 200 else x
+                                        lambda x: x[:300] + '...' if len(str(x)) > 300 else x
                                     )
+                                # Don't truncate summary - keep it complete for full display
                             
                             st.dataframe(display_data, width='stretch', height=400)
                         
@@ -2419,7 +2420,16 @@ def main():
                                     
                                     if 'summary' in pub_data and pd.notna(pub_data['summary']):
                                         st.write(f"**🤖 AI Summary:**")
-                                        st.info(pub_data['summary'])
+                                        # Display complete summary with proper formatting
+                                        with st.container():
+                                            # Use text_area for better multi-line display of complete summary
+                                            st.text_area(
+                                                label="Complete AI Summary", 
+                                                value=str(pub_data['summary']), 
+                                                height=250,  # Augmentation de la hauteur à 250px pour plus de contenu
+                                                disabled=True,
+                                                label_visibility="collapsed"
+                                            )
                                 
                                 with col2:
                                     # Metadata display
@@ -2431,6 +2441,23 @@ def main():
                                     if 'data_source' in pub_data:
                                         st.write(f"🔗 Source: {pub_data['data_source']}")
                                     
+                                    # AI Summary in expandable section for full view
+                                    if 'summary' in pub_data and pd.notna(pub_data['summary']):
+                                        with st.expander("🤖 Complete AI Summary", expanded=True):
+                                            # Display complete summary with proper line breaks
+                                            st.text_area(
+                                                label="Full AI Summary Text",
+                                                value=str(pub_data['summary']),
+                                                height=300,  # Augmentation significative de la hauteur
+                                                disabled=True,
+                                                label_visibility="collapsed"
+                                            )
+                                            # Séparateur visuel
+                                            st.markdown("---")
+                                            # Formatage amélioré pour afficher les sauts de ligne
+                                            formatted_summary = str(pub_data['summary']).replace("\n", "  \n")
+                                            st.markdown(f"**Formatted Summary:**\n\n{formatted_summary}")
+                                    
                                     if 'keywords' in pub_data:
                                         keywords = pub_data['keywords']
                                         if keywords is not None and str(keywords).strip() != '' and str(keywords) != 'nan':
@@ -2439,6 +2466,17 @@ def main():
                                             else:
                                                 keywords_str = str(keywords)
                                             st.write(f"🏷️ **Keywords:** {keywords_str}")
+                                    
+                                    # Summary quality indicator
+                                    if 'summary' in pub_data and pd.notna(pub_data['summary']):
+                                        summary_length = len(pub_data['summary'].split())
+                                        st.write(f"📊 **Summary Quality:** {summary_length} words")
+                                        if summary_length > 50:
+                                            st.success("✅ Detailed summary")
+                                        elif summary_length > 20:
+                                            st.info("ℹ️ Standard summary")
+                                        else:
+                                            st.warning("⚠️ Brief summary")
                     
                     else:
                         st.warning("⚠️ No publications match your current filters")
@@ -2453,26 +2491,7 @@ def main():
                 st.subheader("📋 Basic Data View")
                 st.dataframe(df.head(10), width='stretch')
             
-            # Publication details
-            if len(filtered_df) > 0:
-                st.subheader("📄 Publication Details")
-                
-                # Select publication to view
-                pub_titles = [f"{i}: {title[:60]}..." for i, title in enumerate(filtered_df['title'].head(10))]
-                selected_pub = st.selectbox("Select publication to view", pub_titles)
-                
-                if selected_pub:
-                    pub_idx = int(selected_pub.split(':')[0])
-                    pub_data = filtered_df.iloc[pub_idx]
-                    
-                    st.write(f"**Title:** {pub_data['title']}")
-                    st.write(f"**Abstract:** {pub_data['abstract'][:500]}...")
-                    
-                    if 'summary' in pub_data and pd.notna(pub_data['summary']):
-                        st.write(f"**AI Summary:** {pub_data['summary']}")
-                    
-                    if 'keywords' in pub_data and isinstance(pub_data['keywords'], list):
-                        st.write(f"**Keywords:** {', '.join(pub_data['keywords'])}")
+
     
         with tab2:
             st.header("🕸️ Enhanced Network Graph Analysis")
@@ -2714,7 +2733,7 @@ def main():
                                                     node_attrs = G.nodes[selected_node]
                                                     
                                                     for attr_key, attr_value in node_attrs.items():
-                                                        if attr_key in ['title', 'summary', 'experiment_type']:
+                                                        if attr_key in ['title', 'experiment_type']:
                                                             display_value = str(attr_value)
                                                             if len(display_value) > 100:
                                                                 display_value = display_value[:100] + '...'
@@ -2801,7 +2820,7 @@ def main():
                     st.subheader("📊 Research Impact Summary")
                     
                     # Enhanced metrics dashboard
-                    metric_col1, metric_col2, metric_col3, metric_col4, metric_col5 = st.columns(5)
+                    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
                     
                     with metric_col1:
                         st.metric("📚 Publications", len(df))
@@ -2841,16 +2860,8 @@ def main():
                         st.metric("🔬 Top Domain", top_domain)
                         st.metric("📊 Studies", domains[top_domain])
                     
-                    with metric_col4:
-                        if G is not None and G.number_of_nodes() > 0:
-                            nodes_per_pub = G.number_of_nodes() / len(df)
-                            st.metric("🕸️ Graph Nodes", G.number_of_nodes())
-                            st.metric("🔗 Connectivity", f"{nodes_per_pub:.1f}")
-                        else:
-                            st.metric("🕸️ Graph Nodes", "0")
-                            st.metric("🔗 Connectivity", "N/A")
                     
-                    with metric_col5:
+                    with metric_col4:
                         # Impact severity analysis
                         high_impact = sum(1 for _, row in df.iterrows() 
                                         if any(term in f"{row.get('abstract', '')} {row.get('summary', '')}".lower() 
